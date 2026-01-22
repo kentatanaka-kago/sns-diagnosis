@@ -23,6 +23,7 @@ console.log('接続先URL:', difyApiUrl);
 export interface DifyChatMessageRequest {
   inputs: {
     profile_context: string;
+    mode?: string;
   };
   query?: string;
   user: string;

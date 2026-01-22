@@ -24,7 +24,7 @@ interface ApifyInstagramData {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { username } = body;
+    const { username, mode = 'spicy' } = body;
 
     if (!username || typeof username !== 'string') {
       return NextResponse.json(
@@ -32,6 +32,9 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // モードの検証
+    const validMode = mode === 'mild' ? 'mild' : 'spicy';
 
     // ユーザー名から @ を除去
     const cleanUsername = username.replace(/^@/, '').trim();
@@ -43,7 +46,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 1. Supabaseでキャッシュを確認（24時間以内）
+    // 1. Supabaseでキャッシュを確認（24時間以内、同じモード）
     const twentyFourHoursAgo = new Date();
     twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
 
@@ -51,6 +54,7 @@ export async function POST(request: NextRequest) {
       .from('instagram_cache')
       .select('diagnosis_result, created_at')
       .eq('username', cleanUsername)
+      .eq('mode', validMode) // モードも条件に追加
       .gte('created_at', twentyFourHoursAgo.toISOString())
       .order('created_at', { ascending: false })
       .limit(1)
@@ -228,11 +232,17 @@ ${profileInfo}`;
 
     try {
       // Dify APIに診断リクエストを送信
+      // モードに合わせてqueryを変更
+      const queryText = validMode === 'mild'
+        ? 'このアカウントのInstagram診断をお願いします。優しく診断してください。'
+        : 'このアカウントのInstagram診断をお願いします。';
+      
       diagnosisResult = await sendDifyChatMessage({
         inputs: {
           profile_context: combinedText,
+          mode: validMode,
         },
-        query: 'このアカウントのInstagram診断をお願いします。', // 必須パラメータ
+        query: queryText,
         user: 'api-user',
         response_mode: 'blocking',
       });
@@ -262,6 +272,7 @@ ${profileInfo}`;
         .from('instagram_cache')
         .insert({
           username: cleanUsername,
+          mode: validMode, // モードも保存
           diagnosis_result: diagnosisResult,
         });
 
