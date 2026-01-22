@@ -155,6 +155,23 @@ export default function HomePage() {
                   "診断する"
                 )}
               </Button>
+              
+              {/* 競合調査ボタン（プレミアムプラン限定・開発中） */}
+              <button
+                type="button"
+                disabled
+                className="mt-2 h-11 w-full rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 text-slate-400 font-semibold text-sm cursor-not-allowed relative overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-gradient-to-r from-yellow-400/20 via-pink-400/20 to-purple-400/20 blur-sm" />
+                <div className="relative flex items-center justify-center gap-2">
+                  <span>🔍</span>
+                  <span>競合調査</span>
+                  <span className="inline-flex items-center rounded-full bg-gradient-to-r from-yellow-400 to-pink-400 px-2 py-0.5 text-xs font-bold text-white">
+                    PREMIUM
+                  </span>
+                  <span className="text-xs">（開発中）</span>
+                </div>
+              </button>
               {error && (
                 <div className="mt-2 rounded-lg bg-red-50 border border-red-200 p-3">
                   <p className="text-sm text-red-800">{error}</p>
@@ -174,9 +191,29 @@ export default function HomePage() {
                   hasHashtagSection = true;
                 }
                 
+                // モードの表示名を取得
+                const modeLabels = {
+                  spicy: '💀 辛口モード',
+                  medium: '👔 標準モード',
+                  mild: '💖 甘口モード',
+                };
+                
                 return (
                   <div className="mt-4 rounded-lg bg-slate-50 border border-slate-200 p-4">
                     <h3 className="text-sm font-semibold text-slate-900 mb-2">診断結果</h3>
+                    {/* アカウント名とモードを先頭に表示 */}
+                    <div className="mb-4 pb-3 border-b border-slate-200">
+                      <div className="flex flex-col gap-1 text-xs text-slate-600">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">アカウント:</span>
+                          <span className="text-slate-900">@{instagramId.replace(/^@/, '')}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">モード:</span>
+                          <span className="text-slate-900">{modeLabels[mode]}</span>
+                        </div>
+                      </div>
+                    </div>
                     <div className="text-sm text-slate-700">
                       <ReactMarkdown
                         components={{
