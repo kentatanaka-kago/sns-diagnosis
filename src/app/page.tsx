@@ -127,6 +127,19 @@ export default function HomePage() {
       return;
     }
 
+    // メインIDのバリデーション: @ で始まっているかチェック
+    if (!id.startsWith("@")) {
+      setError("IDは @ から始まる形式で入力してください（例: @username）");
+      return;
+    }
+
+    // 競合IDのバリデーション（入力がある場合のみ）
+    const competitorIdTrimmed = competitorId.trim();
+    if (competitorIdTrimmed && !competitorIdTrimmed.startsWith("@")) {
+      setError("ライバルアカウントIDも @ から始まる形式で入力してください（例: @rival_account）");
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     setResult(null);
