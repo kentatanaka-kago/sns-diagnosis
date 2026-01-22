@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,68 @@ export default function HomePage() {
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied">("idle");
   const [competitorId, setCompetitorId] = useState("");
   const [isCompetitorExpanded, setIsCompetitorExpanded] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("");
+  const [tipIndex, setTipIndex] = useState(0);
+
+  // インスタ豆知識のリスト
+  const instagramTips = [
+    "プロフィール写真は顔出しの方が信頼性が3倍上がるらしいよ",
+    "ハッシュタグは「ビッグワード」と「スモールワード」を混ぜるのがコツ",
+    "リール動画は最初の1.5秒で離脱が決まる！",
+    "ストーリーズのアンケート機能は、親密度を上げる最強ツール",
+    "保存数が多い投稿ほど、発見タブに載りやすい",
+  ];
+
+  // ローディングメッセージの更新
+  useEffect(() => {
+    if (!isLoading) {
+      setLoadingMessage("");
+      return;
+    }
+
+    // ローディング開始時刻を記録
+    const startTime = Date.now();
+
+    const updateMessage = () => {
+      const elapsed = (Date.now() - startTime) / 1000; // 秒
+
+      if (elapsed < 10) {
+        setLoadingMessage("Instagramからデータを取得中... 📡");
+      } else if (elapsed < 20) {
+        setLoadingMessage("投稿のエンゲージメントを分析中... 📊");
+      } else if (elapsed < 30) {
+        setLoadingMessage("AI脳が辛口コメントを生成中... 🧠");
+      } else {
+        setLoadingMessage("仕上げに毒を盛っています... ☠️");
+      }
+    };
+
+    // 初回更新
+    updateMessage();
+
+    // 1秒ごとにメッセージを更新
+    const messageInterval = setInterval(updateMessage, 1000);
+
+    return () => {
+      clearInterval(messageInterval);
+    };
+  }, [isLoading]);
+
+  // 豆知識の切り替え
+  useEffect(() => {
+    if (!isLoading) {
+      setTipIndex(0);
+      return;
+    }
+
+    const tipInterval = setInterval(() => {
+      setTipIndex((prev) => (prev + 1) % instagramTips.length);
+    }, 4000);
+
+    return () => {
+      clearInterval(tipInterval);
+    };
+  }, [isLoading, instagramTips.length]);
 
   const handleDiagnose = async () => {
     const id = instagramId.trim();
@@ -240,6 +302,37 @@ export default function HomePage() {
                   "診断する"
                 )}
               </Button>
+              
+              {/* リッチなローディング画面 */}
+              {isLoading && (
+                <div className="mt-6 animate-in fade-in duration-300">
+                  <div className="flex flex-col items-center justify-center rounded-lg border-2 border-purple-200 bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50 p-8">
+                    {/* スピナー（パルスアニメーション） */}
+                    <div className="relative mb-6">
+                      <div className="h-20 w-20 animate-pulse rounded-full bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 opacity-75"></div>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Loader2 className="h-10 w-10 animate-spin text-white" />
+                      </div>
+                    </div>
+                    
+                    {/* 進捗メッセージ */}
+                    <p className="mb-6 text-center text-lg font-bold text-slate-800">
+                      {loadingMessage || "診断を開始しています..."}
+                    </p>
+                    
+                    {/* 豆知識エリア */}
+                    <div className="w-full max-w-md rounded-lg border border-purple-200 bg-white/80 p-4 shadow-sm">
+                      <div className="mb-2 flex items-center gap-2">
+                        <span className="text-xl">💡</span>
+                        <span className="text-sm font-semibold text-purple-700">今日のインスタ豆知識</span>
+                      </div>
+                      <p className="text-sm leading-relaxed text-slate-700 animate-in fade-in duration-500">
+                        {instagramTips[tipIndex]}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
               
               {error && (
                 <div className="mt-2 rounded-lg bg-red-50 border border-red-200 p-3">
