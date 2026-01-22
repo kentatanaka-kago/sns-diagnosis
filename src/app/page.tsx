@@ -13,6 +13,7 @@ export default function HomePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied">("idle");
 
   const handleDiagnose = async () => {
     const id = instagramId.trim();
@@ -51,6 +52,27 @@ export default function HomePage() {
       );
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleCopyResult = async () => {
+    if (!result) return;
+
+    // ハッシュタグセクションより前の部分だけを抽出
+    const hashtagPattern = /(##\s*)?ハッシュタグ[：:]\s*/i;
+    const hashtagIndex = result.search(hashtagPattern);
+    const textToCopy = hashtagIndex !== -1 
+      ? result.substring(0, hashtagIndex).trim()
+      : result;
+
+    try {
+      await navigator.clipboard.writeText(textToCopy);
+      setCopyStatus("copied");
+      setTimeout(() => {
+        setCopyStatus("idle");
+      }, 2000);
+    } catch (err) {
+      console.error("コピーに失敗しました:", err);
     }
   };
 
@@ -181,14 +203,22 @@ export default function HomePage() {
                 // ハッシュタグセクションを検出して分割
                 // 複数のパターンに対応: "## ハッシュタグ", "## ハッシュタグ:", "ハッシュタグ:", "ハッシュタグ："など
                 const hashtagPattern = /(##\s*)?ハッシュタグ[：:]\s*/i;
-                const hashtagIndex = result.search(hashtagPattern);
+                const hashtagMatch = result.match(hashtagPattern);
+                const hashtagIndex = hashtagMatch ? result.search(hashtagPattern) : -1;
                 
                 let visibleText = result;
                 let hasHashtagSection = false;
+                let hashtagTitle = '';
                 
                 if (hashtagIndex !== -1) {
                   visibleText = result.substring(0, hashtagIndex).trim();
                   hasHashtagSection = true;
+                  // ハッシュタグのタイトル部分を抽出（改行まで、または次の行まで）
+                  const afterHashtag = result.substring(hashtagIndex);
+                  const titleMatch = afterHashtag.match(/^(##\s*)?ハッシュタグ[：:]\s*/i);
+                  if (titleMatch) {
+                    hashtagTitle = titleMatch[0].trim();
+                  }
                 }
                 
                 // モードの表示名を取得
@@ -200,7 +230,27 @@ export default function HomePage() {
                 
                 return (
                   <div className="mt-4 rounded-lg bg-slate-50 border border-slate-200 p-4">
-                    <h3 className="text-sm font-semibold text-slate-900 mb-2">診断結果</h3>
+                    <div className="flex items-start justify-between mb-2">
+                      <h3 className="text-sm font-semibold text-slate-900">診断結果</h3>
+                      {/* コピーボタン */}
+                      <button
+                        type="button"
+                        onClick={handleCopyResult}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-300 bg-white text-slate-700 text-xs font-medium hover:bg-slate-50 hover:border-slate-400 transition-colors"
+                      >
+                        {copyStatus === "copied" ? (
+                          <>
+                            <span>✅</span>
+                            <span>コピーしました！</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>📋</span>
+                            <span>結果をコピー</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
                     {/* アカウント名とモードを先頭に表示 */}
                     <div className="mb-4 pb-3 border-b border-slate-200">
                       <div className="flex flex-col gap-1 text-xs text-slate-600">
@@ -259,42 +309,54 @@ export default function HomePage() {
                       
                       {/* ハッシュタグセクションのぼかし表示 */}
                       {hasHashtagSection && (
-                        <div className="mt-6 relative rounded-lg border-2 border-dashed border-pink-300 bg-gradient-to-br from-pink-50 to-purple-50 p-6 overflow-hidden">
-                          {/* ぼかしたダミーハッシュタグ */}
-                          <div className="blur-sm select-none pointer-events-none">
-                            <div className="flex flex-wrap gap-2 text-xs text-slate-400">
-                              <span className="px-2 py-1 bg-white/50 rounded">#ビジネス</span>
-                              <span className="px-2 py-1 bg-white/50 rounded">#集客</span>
-                              <span className="px-2 py-1 bg-white/50 rounded">#Instagram</span>
-                              <span className="px-2 py-1 bg-white/50 rounded">#マーケティング</span>
-                              <span className="px-2 py-1 bg-white/50 rounded">#SNS運用</span>
-                              <span className="px-2 py-1 bg-white/50 rounded">#フォロワー増加</span>
-                              <span className="px-2 py-1 bg-white/50 rounded">#コンテンツ</span>
-                              <span className="px-2 py-1 bg-white/50 rounded">#ブランディング</span>
-                              <span className="px-2 py-1 bg-white/50 rounded">#エンゲージメント</span>
-                              <span className="px-2 py-1 bg-white/50 rounded">#インフルエンサー</span>
+                        <div className="mt-6 rounded-lg border-2 border-dashed border-pink-300 bg-gradient-to-br from-pink-50 to-purple-50 overflow-hidden">
+                          {/* ハッシュタグのタイトル部分（見えるように表示） */}
+                          {hashtagTitle && (
+                            <div className="px-6 pt-4 pb-2">
+                              <h2 className="text-lg font-bold text-slate-900">
+                                {hashtagTitle.replace(/^##\s*/, '')}
+                              </h2>
                             </div>
-                            <div className="flex flex-wrap gap-2 text-xs text-slate-400 mt-2">
-                              <span className="px-2 py-1 bg-white/50 rounded">#SEO対策</span>
-                              <span className="px-2 py-1 bg-white/50 rounded">#コンバージョン</span>
-                              <span className="px-2 py-1 bg-white/50 rounded">#リーチ拡大</span>
-                            </div>
-                          </div>
+                          )}
                           
-                          {/* ロックアイコンとメッセージ */}
-                          <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/60 backdrop-blur-sm">
-                            <div className="text-center">
-                              <div className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-pink-500 to-purple-500 px-4 py-2 text-white text-sm font-semibold mb-3 shadow-lg">
-                                <span>🔒</span>
-                                <span>ここから先はプレミアムプラン限定</span>
+                          {/* タグ部分のぼかし表示 */}
+                          <div className="relative p-6 overflow-hidden">
+                            {/* ぼかしたダミーハッシュタグ */}
+                            <div className="blur-sm select-none pointer-events-none">
+                              <div className="flex flex-wrap gap-2 text-xs text-slate-400">
+                                <span className="px-2 py-1 bg-white/50 rounded">#ビジネス</span>
+                                <span className="px-2 py-1 bg-white/50 rounded">#集客</span>
+                                <span className="px-2 py-1 bg-white/50 rounded">#Instagram</span>
+                                <span className="px-2 py-1 bg-white/50 rounded">#マーケティング</span>
+                                <span className="px-2 py-1 bg-white/50 rounded">#SNS運用</span>
+                                <span className="px-2 py-1 bg-white/50 rounded">#フォロワー増加</span>
+                                <span className="px-2 py-1 bg-white/50 rounded">#コンテンツ</span>
+                                <span className="px-2 py-1 bg-white/50 rounded">#ブランディング</span>
+                                <span className="px-2 py-1 bg-white/50 rounded">#エンゲージメント</span>
+                                <span className="px-2 py-1 bg-white/50 rounded">#インフルエンサー</span>
                               </div>
-                              <button
-                                type="button"
-                                disabled
-                                className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-pink-500 via-purple-500 to-orange-500 px-6 py-2.5 text-white text-sm font-semibold shadow-md opacity-90 cursor-not-allowed"
-                              >
-                                プレミアムプランで最適なタグを見る
-                              </button>
+                              <div className="flex flex-wrap gap-2 text-xs text-slate-400 mt-2">
+                                <span className="px-2 py-1 bg-white/50 rounded">#SEO対策</span>
+                                <span className="px-2 py-1 bg-white/50 rounded">#コンバージョン</span>
+                                <span className="px-2 py-1 bg-white/50 rounded">#リーチ拡大</span>
+                              </div>
+                            </div>
+                            
+                            {/* ロックアイコンとメッセージ */}
+                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/60 backdrop-blur-sm">
+                              <div className="text-center">
+                                <div className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-pink-500 to-purple-500 px-4 py-2 text-white text-sm font-semibold mb-3 shadow-lg">
+                                  <span>🔒</span>
+                                  <span>ここから先はプレミアムプラン限定</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  disabled
+                                  className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-pink-500 via-purple-500 to-orange-500 px-6 py-2.5 text-white text-sm font-semibold shadow-md opacity-90 cursor-not-allowed"
+                                >
+                                  プレミアムプランで最適なタグを見る
+                                </button>
+                              </div>
                             </div>
                           </div>
                         </div>
