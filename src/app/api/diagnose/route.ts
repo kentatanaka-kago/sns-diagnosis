@@ -77,20 +77,23 @@ export async function POST(request: NextRequest) {
     const { data: cacheData, error: cacheError } = await cacheQuery
       .order('created_at', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
-    if (cacheError && cacheError.code !== 'PGRST116') {
-      // PGRST116 は "no rows returned" エラーなので、キャッシュがないことを意味する
+    if (cacheError) {
+      // maybeSingle()はエラーを返さないはずですが、念のためログに記録
       console.error('Supabase cache check error:', cacheError);
     }
 
-    // キャッシュがあれば返す
+    // キャッシュがあれば返す（maybeSingle()はnullを返す可能性があるため、明示的にチェック）
     if (cacheData && cacheData.diagnosis_result) {
+      console.log(`Cache found for username: ${cleanUsername}, mode: ${validMode}, competitorId: ${cleanCompetitorId || 'none'}`);
       return NextResponse.json({
         result: cacheData.diagnosis_result,
         cached: true,
       });
     }
+    
+    console.log(`No cache found for username: ${cleanUsername}, mode: ${validMode}, competitorId: ${cleanCompetitorId || 'none'}. Fetching new data...`);
 
     // 2. ApifyでInstagramデータを取得
     console.log(`Fetching Instagram data for: ${cleanUsername}`);
