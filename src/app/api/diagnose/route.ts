@@ -53,10 +53,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 1. Supabaseでキャッシュを確認（24時間以内、同じモード、同じ競合アカウント）
+    // 1. Supabaseでキャッシュを確認（6時間以内、同じモード、同じ競合アカウント）
     // 競合アカウントが指定されている場合は、競合アカウントも条件に含める
-    const twentyFourHoursAgo = new Date();
-    twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
+    const sixHoursAgo = new Date();
+    sixHoursAgo.setHours(sixHoursAgo.getHours() - 6);
 
     // キャッシュ検索条件を構築
     let cacheQuery = supabase
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
       .select('diagnosis_result, created_at, competitor_id')
       .eq('username', cleanUsername)
       .eq('mode', validMode) // モードも条件に追加
-      .gte('created_at', twentyFourHoursAgo.toISOString());
+      .gte('created_at', sixHoursAgo.toISOString());
     
     // 競合アカウントIDも厳密に条件に追加
     // competitorIdがある場合: competitor_idがそのIDと一致するもののみ
@@ -97,6 +97,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         result: cacheData.diagnosis_result,
         cached: true,
+        createdAt: cacheData.created_at,
       });
     }
     
@@ -298,12 +299,32 @@ export async function POST(request: NextRequest) {
         const commentsCount = post.commentsCount || post.commentCount || 0;
         let caption = post.caption || post.text || '';
         
+        // ハッシュタグの個数をカウント（#で始まる単語を抽出）
+        const hashtagMatches = caption.match(/#\w+/g);
+        const hashtagCount = hashtagMatches ? hashtagMatches.length : 0;
+        const hashtagText = ` 🏷️タグ数:${hashtagCount}個`;
+        
         // キャプションが100文字を超える場合はカット
         if (caption.length > 100) {
           caption = caption.substring(0, 100) + '...';
         }
         
-        return `投稿${index + 1}: ❤️${likesCount} 💬${commentsCount} 「${caption}」`;
+        // 投稿タイプの判別
+        let postType = '通常フィード';
+        const postTypeValue = post.type || '';
+        const isVideo = post.isVideo || false;
+        
+        if (postTypeValue === 'Video' || isVideo === true) {
+          postType = 'リール動画';
+        } else if (postTypeValue === 'Sidecar' || postTypeValue === 'Carousel') {
+          postType = 'カルーセル';
+        }
+        
+        // 再生回数の取得
+        const viewCount = post.videoViewCount || post.viewCount || null;
+        const viewCountText = viewCount !== null ? ` ▶️再生数: ${viewCount.toLocaleString()}` : '';
+        
+        return `投稿${index + 1}【${postType}】: ❤️${likesCount} 💬${commentsCount}${hashtagText}${viewCountText} 「${caption}」`;
       });
       
       postsText = `【直近の投稿データ】\n${postsData.join('\n')}`;

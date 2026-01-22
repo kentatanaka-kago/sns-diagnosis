@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { ShieldCheck, Sparkles, TrendingUp, Loader2 } from "lucide-react";
+import { ShieldCheck, Sparkles, TrendingUp, Loader2, Clock } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
 export default function HomePage() {
@@ -19,6 +19,7 @@ export default function HomePage() {
   const [loadingMessage, setLoadingMessage] = useState("");
   const [tipIndex, setTipIndex] = useState(0);
   const [shuffledTips, setShuffledTips] = useState<string[]>([]);
+  const [dataTimestamp, setDataTimestamp] = useState<Date | null>(null);
 
   // インスタ豆知識のリスト（25個）
   const instagramTips = [
@@ -143,6 +144,7 @@ export default function HomePage() {
     setIsLoading(true);
     setError(null);
     setResult(null);
+    setDataTimestamp(null);
 
     try {
       const requestBody: { username: string; mode: string; competitorId?: string } = {
@@ -214,6 +216,13 @@ export default function HomePage() {
       }
 
       setResult(data.result);
+      
+      // データの日時をセット（キャッシュの場合）
+      if (data.createdAt) {
+        setDataTimestamp(new Date(data.createdAt));
+      } else {
+        setDataTimestamp(null);
+      }
     } catch (err) {
       console.error("診断エラー:", err);
       const errorMessage = err instanceof Error ? err.message : "診断中にエラーが発生しました。しばらくしてから再度お試しください。";
@@ -479,6 +488,22 @@ export default function HomePage() {
                   mild: '💖 甘口モード',
                 };
                 
+                // 日時フォーマット関数
+                const formatDateTime = (date: Date): string => {
+                  const month = date.getMonth() + 1;
+                  const day = date.getDate();
+                  const hours = date.getHours();
+                  const minutes = date.getMinutes().toString().padStart(2, '0');
+                  return `${month}月${day}日 ${hours}:${minutes}`;
+                };
+                
+                // 次回診断可能日時を計算（診断日時 + 6時間）
+                const getNextAvailableTime = (date: Date): string => {
+                  const nextDate = new Date(date);
+                  nextDate.setHours(nextDate.getHours() + 6);
+                  return formatDateTime(nextDate);
+                };
+                
                 return (
                   <div className="mt-4 rounded-lg bg-slate-50 border border-slate-200 p-4">
                     <div className="flex items-start justify-between mb-2">
@@ -503,6 +528,26 @@ export default function HomePage() {
                       </button>
                     </div>
                     {/* アカウント名とモードを先頭に表示 */}
+                    {/* データ日時インフォメーション */}
+                    {dataTimestamp && (
+                      <div className="mb-4 rounded-lg bg-blue-50 border border-blue-200 p-3">
+                        <div className="flex items-start gap-2">
+                          <Clock className="h-4 w-4 text-blue-800 mt-0.5 flex-shrink-0" />
+                          <div className="flex-1 text-xs text-blue-800">
+                            <p className="font-medium mb-1">
+                              ⏳ 前回の診断結果（{formatDateTime(dataTimestamp)}） を表示しています
+                            </p>
+                            <p className="text-blue-700 mb-1">
+                              次回のAI診断は {getNextAvailableTime(dataTimestamp)} 以降に可能です
+                            </p>
+                            <p className="text-blue-600">
+                              💡 同じアカウントでも、違うモード（辛口/標準/甘口）なら今すぐ診断できます
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
                     <div className="mb-4 pb-3 border-b border-slate-200">
                       <div className="flex flex-col gap-1 text-xs text-slate-600">
                         <div className="flex items-center gap-2">
