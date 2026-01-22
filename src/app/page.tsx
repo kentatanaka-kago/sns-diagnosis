@@ -18,15 +18,46 @@ export default function HomePage() {
   const [isCompetitorExpanded, setIsCompetitorExpanded] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("");
   const [tipIndex, setTipIndex] = useState(0);
+  const [shuffledTips, setShuffledTips] = useState<string[]>([]);
 
-  // インスタ豆知識のリスト
+  // インスタ豆知識のリスト（25個）
   const instagramTips = [
-    "プロフィール写真は顔出しの方が信頼性が3倍上がるらしいよ",
+    "保存数が多い投稿ほど、発見タブに載りやすくなる",
+    "プロフィールのアイコンは、顔写真の方が信頼性が3倍上がる",
+    "自己紹介文の最初の3行で、フォローされるかどうかが決まる",
     "ハッシュタグは「ビッグワード」と「スモールワード」を混ぜるのがコツ",
-    "リール動画は最初の1.5秒で離脱が決まる！",
-    "ストーリーズのアンケート機能は、親密度を上げる最強ツール",
-    "保存数が多い投稿ほど、発見タブに載りやすい",
+    "リール動画は最初の1.5秒で離脱が決まる！結論から見せよう",
+    "ストーリーズのアンケート機能は、親密度（シグナル）を上げる最強ツール",
+    "投稿の「場所（ジオタグ）」を追加すると、近隣ユーザーに見つかりやすくなる",
+    "コメントには1時間以内に返信すると、アルゴリズム的に優遇される",
+    "フィード投稿は「正方形」より「縦長（4:5）」の方が、画面占有率が高く有利",
+    "キャプションの1行目は「続きを読ませる」ための釣り針（フック）を置け",
+    "ハイライトは「お店のメニュー表」。初めて来た人に見せたい情報を置こう",
+    "フォロワー数より「エンゲージメント率」の方が、AIは重視している",
+    "毎日投稿がつらいなら、ストーリーズだけは毎日動かそう",
+    "文字入れ投稿は、左上に「目線を集めるタイトル」を置くと読まれやすい",
+    "「保存して後で見返してね」という一言があるだけで、保存率は変わる",
+    "ライブ配信をすると、ストーリーズの列で一番左に表示される",
+    "カルーセル（複数枚）投稿は、滞在時間が伸びやすいのでおすすめ",
+    "同業者の投稿に「いいね」やコメントをすると、認知が広がるきっかけになる",
+    "プロフィールリンクは lit.link などを活用して、導線を整理しよう",
+    "流行りの音源（Trending Audio）を使うと、リールの再生回数が伸びやすい",
+    "写真は「明るさ」と「彩度」を少し上げるだけで、クリック率が変わる",
+    "質問箱への回答は、ユーザーの悩みを知る宝の山",
+    "自分の投稿をストーリーズでシェアする時は、スタンプで一部を隠してタップさせよう",
+    "分析ツール（インサイト）は、数字よりも「何がウケたか」の傾向を見よう",
+    "結局一番大事なのは、小手先のテクニックより「継続すること」",
   ];
+
+  // Fisher-Yatesアルゴリズムでシャッフル
+  const shuffleArray = <T,>(array: T[]): T[] => {
+    const shuffled = [...array];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  };
 
   // ローディングメッセージの更新
   useEffect(() => {
@@ -63,21 +94,30 @@ export default function HomePage() {
     };
   }, [isLoading]);
 
-  // 豆知識の切り替え
+  // 豆知識のシャッフルと切り替え
   useEffect(() => {
     if (!isLoading) {
       setTipIndex(0);
       return;
     }
 
+    // ローディング開始時にシャッフル
+    const shuffled = shuffleArray(instagramTips);
+    setShuffledTips(shuffled);
+    setTipIndex(0);
+
     const tipInterval = setInterval(() => {
-      setTipIndex((prev) => (prev + 1) % instagramTips.length);
+      setTipIndex((prev) => {
+        const nextIndex = prev + 1;
+        // シャッフルされた配列の長さでループ
+        return nextIndex % shuffled.length;
+      });
     }, 4000);
 
     return () => {
       clearInterval(tipInterval);
     };
-  }, [isLoading, instagramTips.length]);
+  }, [isLoading]);
 
   const handleDiagnose = async () => {
     const id = instagramId.trim();
@@ -327,7 +367,7 @@ export default function HomePage() {
                         <span className="text-sm font-semibold text-purple-700">今日のインスタ豆知識</span>
                       </div>
                       <p className="text-sm leading-relaxed text-slate-700 animate-in fade-in duration-500">
-                        {instagramTips[tipIndex]}
+                        {shuffledTips.length > 0 ? shuffledTips[tipIndex] : instagramTips[0]}
                       </p>
                     </div>
                   </div>
