@@ -186,6 +186,8 @@ export default function HomePage() {
       if (!response.ok) {
         // アカウントが存在しない場合のエラーハンドリング
         const errorMessage = data.error || "";
+        const errorDetails = data.details || "";
+        
         if (
           response.status === 404 ||
           errorMessage.includes("No Instagram data found") ||
@@ -197,6 +199,17 @@ export default function HomePage() {
           setIsLoading(false);
           return;
         }
+        
+        // Dify APIエラーの場合、詳細なメッセージを表示
+        if (errorMessage.includes("AI診断") || errorMessage.includes("Failed to get diagnosis")) {
+          const displayMessage = errorDetails 
+            ? `${errorMessage}\n${errorDetails}`
+            : errorMessage;
+          setError(displayMessage);
+          setIsLoading(false);
+          return;
+        }
+        
         throw new Error(errorMessage || "診断に失敗しました");
       }
 

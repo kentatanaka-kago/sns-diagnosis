@@ -80,12 +80,31 @@ export async function sendDifyChatMessage(
 
     console.log('Dify API response status:', response.status);
     console.log('Dify API response data keys:', Object.keys(response.data));
+    console.log('Dify API response data:', JSON.stringify(response.data, null, 2).substring(0, 500));
     
     // レスポンスからanswerを取得（複数の形式に対応）
-    const answer = response.data.answer || (response.data as any).text || '';
+    // ワークフローアプリの場合は、outputsの中にanswerが含まれる可能性がある
+    let answer = '';
     
-    if (!answer) {
-      console.warn('Dify API response does not contain answer field:', response.data);
+    if (response.data.answer) {
+      answer = response.data.answer;
+    } else if ((response.data as any).text) {
+      answer = (response.data as any).text;
+    } else if ((response.data as any).outputs) {
+      // ワークフローアプリの場合、outputsの中にanswerが含まれる可能性がある
+      const outputs = (response.data as any).outputs;
+      answer = outputs.answer || outputs.text || outputs.result || '';
+    } else if (typeof response.data === 'string') {
+      answer = response.data;
+    }
+    
+    if (!answer || !answer.trim()) {
+      console.error('Dify API response does not contain answer field:', {
+        responseData: response.data,
+        responseKeys: Object.keys(response.data),
+        fullResponse: JSON.stringify(response.data, null, 2),
+      });
+      throw new Error('Dify APIから診断結果が返されませんでした。レスポンス形式を確認してください。');
     }
     
     return answer;

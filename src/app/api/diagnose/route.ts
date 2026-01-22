@@ -95,19 +95,25 @@ export async function POST(request: NextRequest) {
     
     console.log(`No cache found for username: ${cleanUsername}, mode: ${validMode}, competitorId: ${cleanCompetitorId || 'none'}. Fetching new data...`);
 
-    // 2. ApifyでInstagramデータを取得
-    console.log(`Fetching Instagram data for: ${cleanUsername}`);
+    // 2. ApifyでInstagramデータを取得（ターゲットIDと競合IDを1回のリクエストで取得）
+    console.log(`Fetching Instagram data for: ${cleanUsername}${cleanCompetitorId ? ` and competitor: ${cleanCompetitorId}` : ''}`);
 
     let apifyData: any = null;
+    let competitorData: any = null;
 
     try {
-      // Apifyアクターを実行
-      console.log('Starting Apify actor for username:', cleanUsername);
+      // ターゲットIDと競合ID（あれば）をまとめて取得
+      const usernames = [cleanUsername];
+      if (cleanCompetitorId) {
+        usernames.push(cleanCompetitorId);
+      }
+      
+      console.log('Starting Apify actor for usernames:', usernames);
       
       // Apify公式のinstagram-profile-scraperアクターのパラメータを設定
       // usernamesパラメータを使用（公式推奨、ログイン壁にぶつかりにくい）
       const inputParams = {
-        usernames: [cleanUsername], // IDを直接渡す
+        usernames: usernames, // ターゲットIDと競合IDをまとめて渡す
       };
       
       console.log('Apify input parameters:', JSON.stringify(inputParams, null, 2));
@@ -136,43 +142,84 @@ export async function POST(request: NextRequest) {
         // レスポンス形式を確認するためにログ出力
         console.log('First item structure:', JSON.stringify(dataset.items[0], null, 2).substring(0, 500));
         
-        // 複数の形式に対応
-        const firstItem = dataset.items[0];
-        
-        // エラーレスポンスのチェック
-        if (firstItem.error) {
-          const errorDesc = firstItem.errorDescription || firstItem.error || 'Unknown error';
-          console.log('Apify returned error:', errorDesc);
+        // items配列から、それぞれのIDのデータを検索して抽出
+        for (const item of dataset.items) {
+          // 複数の形式に対応
+          let dataItem = item;
           
-          // より詳細なエラーメッセージ
-          let userMessage = 'このアカウントは非公開か、ユーザー名が正しくない可能性があります。';
-          if (errorDesc.includes('private')) {
-            userMessage = 'このアカウントは非公開アカウントのため、データを取得できませんでした。';
-          } else if (errorDesc.includes('Empty')) {
-            userMessage = 'このアカウントのデータが見つかりませんでした。ユーザー名が正しいか確認してください。';
+          // 形式2: 配列の最初の要素がプロフィールデータ
+          if (Array.isArray(item) && item[0]) {
+            dataItem = item[0];
           }
           
-          return NextResponse.json(
-            {
-              error: 'No Instagram data found for this username',
-              details: userMessage,
-              technicalDetails: errorDesc,
-            },
-            { status: 404 }
-          );
+          // エラーレスポンスのチェック
+          if (dataItem.error) {
+            const errorDesc = dataItem.errorDescription || dataItem.error || 'Unknown error';
+            console.log('Apify returned error for item:', errorDesc);
+            continue; // エラーがあるアイテムはスキップ
+          }
+          
+          // usernameでデータを分類
+          const itemUsername = dataItem.username || '';
+          const normalizedItemUsername = itemUsername.toLowerCase().replace(/^@/, '');
+          
+          if (normalizedItemUsername === cleanUsername.toLowerCase()) {
+            // ターゲットIDのデータ
+            apifyData = dataItem;
+            console.log('Found target user data:', itemUsername);
+          } else if (cleanCompetitorId && normalizedItemUsername === cleanCompetitorId.toLowerCase()) {
+            // 競合IDのデータ
+            competitorData = dataItem;
+            console.log('Found competitor data:', itemUsername);
+          }
         }
         
-        // 形式1: 直接プロフィールと投稿が含まれている
-        if (firstItem.profile || firstItem.posts) {
-          apifyData = firstItem;
+        // ターゲットIDのデータが見つからない場合、最初のアイテムを使用（後方互換性）
+        if (!apifyData && dataset.items.length > 0) {
+          const firstItem = dataset.items[0];
+          let dataItem = firstItem;
+          
+          if (Array.isArray(firstItem) && firstItem[0]) {
+            dataItem = firstItem[0];
+          }
+          
+          // エラーチェック
+          if (!dataItem.error) {
+            apifyData = dataItem;
+            console.log('Using first item as target data (fallback)');
+          }
         }
-        // 形式2: 配列の最初の要素がプロフィールデータ
-        else if (Array.isArray(firstItem) && firstItem[0]) {
-          apifyData = firstItem[0];
-        }
-        // 形式3: そのまま使用
-        else {
-          apifyData = firstItem;
+        
+        // ターゲットIDのデータが見つからず、エラーがある場合
+        if (!apifyData) {
+          const firstItem = dataset.items[0];
+          let dataItem = firstItem;
+          
+          if (Array.isArray(firstItem) && firstItem[0]) {
+            dataItem = firstItem[0];
+          }
+          
+          if (dataItem.error) {
+            const errorDesc = dataItem.errorDescription || dataItem.error || 'Unknown error';
+            console.log('Apify returned error:', errorDesc);
+            
+            // より詳細なエラーメッセージ
+            let userMessage = 'このアカウントは非公開か、ユーザー名が正しくない可能性があります。';
+            if (errorDesc.includes('private')) {
+              userMessage = 'このアカウントは非公開アカウントのため、データを取得できませんでした。';
+            } else if (errorDesc.includes('Empty')) {
+              userMessage = 'このアカウントのデータが見つかりませんでした。ユーザー名が正しいか確認してください。';
+            }
+            
+            return NextResponse.json(
+              {
+                error: 'No Instagram data found for this username',
+                details: userMessage,
+                technicalDetails: errorDesc,
+              },
+              { status: 404 }
+            );
+          }
         }
       }
     } catch (apifyError) {
@@ -254,50 +301,35 @@ export async function POST(request: NextRequest) {
       postsText = `【直近の投稿データ】\n${postsData.join('\n')}`;
     }
 
-    // 競合アカウントのデータを取得（competitorIdが指定されている場合）
+    // 競合アカウントの情報を整形（既に取得済みのcompetitorDataを使用）
     let competitorInfo = '';
-    if (cleanCompetitorId) {
-      console.log(`Fetching competitor data for: ${cleanCompetitorId}`);
+    if (cleanCompetitorId && competitorData) {
+      console.log(`Processing competitor data for: ${cleanCompetitorId}`);
       
-      try {
-        const competitorInputParams = {
-          usernames: [cleanCompetitorId],
-        };
+      // エラーチェック
+      if (!competitorData.error) {
+        const competitorProfileText = competitorData.biography || '';
+        const competitorProfileName = competitorData.fullName || '';
+        const competitorProfileUsername = competitorData.username || cleanCompetitorId;
+        const competitorFollowersCount = competitorData.followersCount ?? null;
+        const competitorFollowsCount = competitorData.followsCount ?? null;
         
-        const competitorRun = await apifyClient.actor('apify/instagram-profile-scraper').call(competitorInputParams);
-        const finishedCompetitorRun = await apifyClient.run(competitorRun.id).waitForFinish();
-        
-        if (finishedCompetitorRun.status === 'SUCCEEDED') {
-          const competitorDataset = await apifyClient.dataset(finishedCompetitorRun.defaultDatasetId).listItems();
-          
-          if (competitorDataset.items && competitorDataset.items.length > 0) {
-            const competitorData = competitorDataset.items[0];
-            
-            // エラーチェック
-            if (!competitorData.error) {
-              const competitorProfileText = competitorData.biography || '';
-              const competitorProfileName = competitorData.fullName || '';
-              const competitorProfileUsername = competitorData.username || cleanCompetitorId;
-              const competitorFollowersCount = competitorData.followersCount ?? null;
-              const competitorFollowsCount = competitorData.followsCount ?? null;
-              
-              competitorInfo = [
-                `【競合アカウント情報】`,
-                competitorProfileUsername ? `ユーザー名: ${competitorProfileUsername}` : '',
-                competitorProfileName ? `表示名: ${competitorProfileName}` : '',
-                competitorProfileText ? `プロフィール文: ${competitorProfileText}` : '',
-                competitorFollowersCount !== null ? `フォロワー数: ${competitorFollowersCount.toLocaleString()}` : '',
-                competitorFollowsCount !== null ? `フォロー数: ${competitorFollowsCount.toLocaleString()}` : '',
-              ]
-                .filter((text) => text.trim().length > 0)
-                .join('\n');
-            }
-          }
-        }
-      } catch (competitorError) {
-        console.error('Failed to fetch competitor data:', competitorError);
-        // 競合データの取得に失敗してもメインの診断は続行
+        competitorInfo = [
+          `【競合アカウント情報】`,
+          competitorProfileUsername ? `ユーザー名: ${competitorProfileUsername}` : '',
+          competitorProfileName ? `表示名: ${competitorProfileName}` : '',
+          competitorProfileText ? `プロフィール文: ${competitorProfileText}` : '',
+          competitorFollowersCount !== null ? `フォロワー数: ${competitorFollowersCount.toLocaleString()}` : '',
+          competitorFollowsCount !== null ? `フォロー数: ${competitorFollowsCount.toLocaleString()}` : '',
+        ]
+          .filter((text) => text.trim().length > 0)
+          .join('\n');
+      } else {
+        console.log('Competitor data has error, skipping competitor info');
       }
+    } else if (cleanCompetitorId && !competitorData) {
+      console.log('Competitor data not found in Apify response, but competitor ID was provided');
+      // 競合データが見つからなくてもメインの診断は続行
     }
 
     // Difyに送るプロンプト用テキスト
@@ -344,10 +376,32 @@ ${profileInfo}${postsText ? `\n\n${postsText}` : ''}${competitorInfo ? `\n\n${co
       });
     } catch (difyError) {
       console.error('Dify API error:', difyError);
+      
+      // エラーメッセージを詳細に取得
+      let errorMessage = 'Failed to get diagnosis from AI';
+      let errorDetails = 'Unknown error';
+      
+      if (difyError instanceof Error) {
+        errorDetails = difyError.message;
+        
+        // 認証エラーの場合
+        if (difyError.message.includes('認証') || difyError.message.includes('401')) {
+          errorMessage = 'AI診断サービスの認証に失敗しました';
+        }
+        // タイムアウトエラーの場合
+        else if (difyError.message.includes('timeout') || difyError.message.includes('タイムアウト')) {
+          errorMessage = 'AI診断に時間がかかりすぎています';
+        }
+        // その他のエラー
+        else {
+          errorMessage = 'AI診断の取得に失敗しました';
+        }
+      }
+      
       return NextResponse.json(
         {
-          error: 'Failed to get diagnosis from AI',
-          details: difyError instanceof Error ? difyError.message : 'Unknown error',
+          error: errorMessage,
+          details: errorDetails,
         },
         { status: 500 }
       );
