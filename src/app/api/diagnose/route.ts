@@ -58,6 +58,7 @@ export async function POST(request: NextRequest) {
     const twentyFourHoursAgo = new Date();
     twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
 
+    // キャッシュ検索条件を構築
     let cacheQuery = supabase
       .from('instagram_cache')
       .select('diagnosis_result, created_at, competitor_id')
@@ -65,13 +66,18 @@ export async function POST(request: NextRequest) {
       .eq('mode', validMode) // モードも条件に追加
       .gte('created_at', twentyFourHoursAgo.toISOString());
     
-    // 競合アカウントIDも条件に追加
-    if (cleanCompetitorId) {
+    // 競合アカウントIDも厳密に条件に追加
+    // competitorIdがある場合: competitor_idがそのIDと一致するもののみ
+    // competitorIdがない場合: competitor_idがNULLのもののみ
+    if (cleanCompetitorId && cleanCompetitorId.trim() !== '') {
       // competitorIdが指定されている場合は、competitorIdも一致するキャッシュのみを使用
       cacheQuery = cacheQuery.eq('competitor_id', cleanCompetitorId);
+      console.log(`Cache search: username=${cleanUsername}, mode=${validMode}, competitor_id=${cleanCompetitorId}`);
     } else {
       // competitorIdが指定されていない場合は、competitor_idがnullのキャッシュのみを使用
+      // これにより、単独診断のキャッシュと競合比較のキャッシュを区別できる
       cacheQuery = cacheQuery.is('competitor_id', null);
+      console.log(`Cache search: username=${cleanUsername}, mode=${validMode}, competitor_id=NULL`);
     }
 
     const { data: cacheData, error: cacheError } = await cacheQuery
@@ -86,14 +92,16 @@ export async function POST(request: NextRequest) {
 
     // キャッシュがあれば返す（maybeSingle()はnullを返す可能性があるため、明示的にチェック）
     if (cacheData && cacheData.diagnosis_result) {
-      console.log(`Cache found for username: ${cleanUsername}, mode: ${validMode}, competitorId: ${cleanCompetitorId || 'none'}`);
+      const cachedCompetitorId = cacheData.competitor_id || 'NULL';
+      console.log(`Cache found: username=${cleanUsername}, mode=${validMode}, competitor_id=${cachedCompetitorId}`);
       return NextResponse.json({
         result: cacheData.diagnosis_result,
         cached: true,
       });
     }
     
-    console.log(`No cache found for username: ${cleanUsername}, mode: ${validMode}, competitorId: ${cleanCompetitorId || 'none'}. Fetching new data...`);
+    const searchCompetitorId = cleanCompetitorId && cleanCompetitorId.trim() !== '' ? cleanCompetitorId : 'NULL';
+    console.log(`No cache found: username=${cleanUsername}, mode=${validMode}, competitor_id=${searchCompetitorId}. Fetching new data...`);
 
     // 2. ApifyでInstagramデータを取得（ターゲットIDと競合IDを1回のリクエストで取得）
     console.log(`Fetching Instagram data for: ${cleanUsername}${cleanCompetitorId ? ` and competitor: ${cleanCompetitorId}` : ''}`);
