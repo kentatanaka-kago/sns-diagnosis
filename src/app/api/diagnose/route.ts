@@ -3,6 +3,10 @@ import { supabase } from '@/lib/supabase';
 import { apifyClient } from '@/lib/apify';
 import { sendDifyChatMessage } from '@/lib/dify';
 
+// Vercelのタイムアウト制限を最大まで延長（Hobbyプランの最大値は60秒）
+export const maxDuration = 60; // タイムアウトを60秒に延長
+export const dynamic = 'force-dynamic';
+
 interface InstagramCache {
   id: string;
   username: string;
