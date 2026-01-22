@@ -24,7 +24,7 @@ interface ApifyInstagramData {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { username, mode = 'medium' } = body;
+    const { username, mode = 'medium', competitorId } = body;
 
     if (!username || typeof username !== 'string') {
       return NextResponse.json(
@@ -35,6 +35,9 @@ export async function POST(request: NextRequest) {
 
     // モードの検証
     const validMode = mode === 'mild' ? 'mild' : mode === 'medium' ? 'medium' : 'spicy';
+    
+    // 競合アカウントIDの処理
+    const cleanCompetitorId = competitorId ? competitorId.replace(/^@/, '').trim() : null;
 
     // ユーザー名から @ を除去
     const cleanUsername = username.replace(/^@/, '').trim();
@@ -46,16 +49,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 1. Supabaseでキャッシュを確認（24時間以内、同じモード）
+    // 1. Supabaseでキャッシュを確認（24時間以内、同じモード、同じ競合アカウント）
+    // 競合アカウントが指定されている場合は、競合アカウントも条件に含める
     const twentyFourHoursAgo = new Date();
     twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
 
-    const { data: cacheData, error: cacheError } = await supabase
+    let cacheQuery = supabase
       .from('instagram_cache')
-      .select('diagnosis_result, created_at')
+      .select('diagnosis_result, created_at, competitor_id')
       .eq('username', cleanUsername)
       .eq('mode', validMode) // モードも条件に追加
-      .gte('created_at', twentyFourHoursAgo.toISOString())
+      .gte('created_at', twentyFourHoursAgo.toISOString());
+    
+    // 競合アカウントIDも条件に追加
+    if (cleanCompetitorId) {
+      // competitorIdが指定されている場合は、competitorIdも一致するキャッシュのみを使用
+      cacheQuery = cacheQuery.eq('competitor_id', cleanCompetitorId);
+    } else {
+      // competitorIdが指定されていない場合は、competitor_idがnullのキャッシュのみを使用
+      cacheQuery = cacheQuery.is('competitor_id', null);
+    }
+
+    const { data: cacheData, error: cacheError } = await cacheQuery
       .order('created_at', { ascending: false })
       .limit(1)
       .single();
@@ -232,9 +247,55 @@ export async function POST(request: NextRequest) {
       postsText = `【直近の投稿データ】\n${postsData.join('\n')}`;
     }
 
+    // 競合アカウントのデータを取得（competitorIdが指定されている場合）
+    let competitorInfo = '';
+    if (cleanCompetitorId) {
+      console.log(`Fetching competitor data for: ${cleanCompetitorId}`);
+      
+      try {
+        const competitorInputParams = {
+          usernames: [cleanCompetitorId],
+        };
+        
+        const competitorRun = await apifyClient.actor('apify/instagram-profile-scraper').call(competitorInputParams);
+        const finishedCompetitorRun = await apifyClient.run(competitorRun.id).waitForFinish();
+        
+        if (finishedCompetitorRun.status === 'SUCCEEDED') {
+          const competitorDataset = await apifyClient.dataset(finishedCompetitorRun.defaultDatasetId).listItems();
+          
+          if (competitorDataset.items && competitorDataset.items.length > 0) {
+            const competitorData = competitorDataset.items[0];
+            
+            // エラーチェック
+            if (!competitorData.error) {
+              const competitorProfileText = competitorData.biography || '';
+              const competitorProfileName = competitorData.fullName || '';
+              const competitorProfileUsername = competitorData.username || cleanCompetitorId;
+              const competitorFollowersCount = competitorData.followersCount ?? null;
+              const competitorFollowsCount = competitorData.followsCount ?? null;
+              
+              competitorInfo = [
+                `【競合アカウント情報】`,
+                competitorProfileUsername ? `ユーザー名: ${competitorProfileUsername}` : '',
+                competitorProfileName ? `表示名: ${competitorProfileName}` : '',
+                competitorProfileText ? `プロフィール文: ${competitorProfileText}` : '',
+                competitorFollowersCount !== null ? `フォロワー数: ${competitorFollowersCount.toLocaleString()}` : '',
+                competitorFollowsCount !== null ? `フォロー数: ${competitorFollowsCount.toLocaleString()}` : '',
+              ]
+                .filter((text) => text.trim().length > 0)
+                .join('\n');
+            }
+          }
+        }
+      } catch (competitorError) {
+        console.error('Failed to fetch competitor data:', competitorError);
+        // 競合データの取得に失敗してもメインの診断は続行
+      }
+    }
+
     // Difyに送るプロンプト用テキスト
     const combinedText = `【プロフィール情報】
-${profileInfo}${postsText ? `\n\n${postsText}` : ''}`;
+${profileInfo}${postsText ? `\n\n${postsText}` : ''}${competitorInfo ? `\n\n${competitorInfo}` : ''}`;
 
     if (!combinedText.trim()) {
       return NextResponse.json(
@@ -258,6 +319,11 @@ ${profileInfo}${postsText ? `\n\n${postsText}` : ''}`;
         queryText = 'このアカウントのInstagram診断をお願いします。優しく診断してください。';
       } else if (validMode === 'medium') {
         queryText = 'このアカウントのInstagram診断をお願いします。バランスの取れた診断をお願いします。';
+      }
+      
+      // 競合アカウントが指定されている場合は、比較診断を依頼
+      if (cleanCompetitorId) {
+        queryText += ' 競合アカウントの情報も提供されているので、比較分析を含めて診断してください。';
       }
       
       diagnosisResult = await sendDifyChatMessage({
@@ -291,13 +357,27 @@ ${profileInfo}${postsText ? `\n\n${postsText}` : ''}`;
 
     // 5. 結果をSupabaseに保存
     try {
+      const insertData: {
+        username: string;
+        mode: string;
+        diagnosis_result: string;
+        competitor_id?: string | null;
+      } = {
+        username: cleanUsername,
+        mode: validMode, // モードも保存
+        diagnosis_result: diagnosisResult,
+      };
+      
+      // 競合アカウントIDも保存
+      if (cleanCompetitorId) {
+        insertData.competitor_id = cleanCompetitorId;
+      } else {
+        insertData.competitor_id = null;
+      }
+      
       const { error: insertError } = await supabase
         .from('instagram_cache')
-        .insert({
-          username: cleanUsername,
-          mode: validMode, // モードも保存
-          diagnosis_result: diagnosisResult,
-        });
+        .insert(insertData);
 
       if (insertError) {
         console.error('Supabase insert error:', insertError);

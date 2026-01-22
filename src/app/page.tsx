@@ -14,6 +14,8 @@ export default function HomePage() {
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied">("idle");
+  const [competitorId, setCompetitorId] = useState("");
+  const [isCompetitorExpanded, setIsCompetitorExpanded] = useState(false);
 
   const handleDiagnose = async () => {
     const id = instagramId.trim();
@@ -28,12 +30,22 @@ export default function HomePage() {
     setResult(null);
 
     try {
+      const requestBody: { username: string; mode: string; competitorId?: string } = {
+        username: id,
+        mode,
+      };
+      
+      // ライバルIDが入力されていれば追加
+      if (competitorId.trim()) {
+        requestBody.competitorId = competitorId.trim();
+      }
+
       const response = await fetch("/api/diagnose", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ username: id, mode }),
+        body: JSON.stringify(requestBody),
       });
 
       const data = await response.json();
@@ -162,6 +174,57 @@ export default function HomePage() {
                 </button>
               </div>
               
+              {/* 競合比較アコーディオン */}
+              <div className="mt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsCompetitorExpanded(!isCompetitorExpanded)}
+                  disabled={isLoading}
+                  className="w-full h-11 rounded-lg border-2 border-slate-300 bg-gradient-to-r from-yellow-50 via-pink-50 to-purple-50 text-slate-700 font-semibold text-sm hover:border-slate-400 transition-all relative overflow-hidden disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-yellow-400/10 via-pink-400/10 to-purple-400/10" />
+                  <div className="relative flex items-center justify-center gap-2">
+                    <span>🔍</span>
+                    <span>競合比較</span>
+                    <span className="inline-flex items-center rounded-full bg-gradient-to-r from-yellow-400 to-pink-400 px-2 py-0.5 text-xs font-bold text-white">
+                      PREMIUM
+                    </span>
+                    <span className={`text-xs transition-transform ${isCompetitorExpanded ? 'rotate-180' : ''}`}>
+                      ▼
+                    </span>
+                  </div>
+                </button>
+                
+                {/* ライバルID入力欄（アコーディオン展開時） */}
+                <div
+                  className={`overflow-hidden transition-all duration-300 ease-in-out ${
+                    isCompetitorExpanded
+                      ? "max-h-40 opacity-100 mt-3"
+                      : "max-h-0 opacity-0"
+                  }`}
+                >
+                  <div className="rounded-lg border-2 border-dashed border-pink-300 bg-gradient-to-br from-pink-50 via-purple-50 to-yellow-50 p-4">
+                    <label className="text-sm font-medium text-slate-800 block mb-2" htmlFor="competitorId">
+                      ライバルアカウント ID
+                    </label>
+                    <Input
+                      id="competitorId"
+                      placeholder="@rival_account"
+                      value={competitorId}
+                      onChange={(e) => setCompetitorId(e.target.value)}
+                      className="h-11 bg-white"
+                      inputMode="text"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      disabled={isLoading}
+                    />
+                    <p className="mt-2 text-xs text-slate-500">
+                      比較したいアカウントのIDを入力すると、診断結果に競合比較が含まれます
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
               <Button
                 type="button"
                 onClick={handleDiagnose}
@@ -178,22 +241,6 @@ export default function HomePage() {
                 )}
               </Button>
               
-              {/* 競合調査ボタン（プレミアムプラン限定・開発中） */}
-              <button
-                type="button"
-                disabled
-                className="mt-2 h-11 w-full rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 text-slate-400 font-semibold text-sm cursor-not-allowed relative overflow-hidden"
-              >
-                <div className="absolute inset-0 bg-gradient-to-r from-yellow-400/20 via-pink-400/20 to-purple-400/20 blur-sm" />
-                <div className="relative flex items-center justify-center gap-2">
-                  <span>🔍</span>
-                  <span>競合調査</span>
-                  <span className="inline-flex items-center rounded-full bg-gradient-to-r from-yellow-400 to-pink-400 px-2 py-0.5 text-xs font-bold text-white">
-                    PREMIUM
-                  </span>
-                  <span className="text-xs">（開発中）</span>
-                </div>
-              </button>
               {error && (
                 <div className="mt-2 rounded-lg bg-red-50 border border-red-200 p-3">
                   <p className="text-sm text-red-800">{error}</p>
