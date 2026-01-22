@@ -211,10 +211,30 @@ export async function POST(request: NextRequest) {
       .filter((text) => text.trim().length > 0)
       .join('\n');
 
-    // Difyに送るプロンプト用テキスト（投稿データが取得できなかった旨の前置きを追加）
-    const combinedText = `投稿データは取得できませんでしたが、以下のプロフィール情報からアカウントの印象と改善点を辛口で診断してください。
+    // 投稿データを抽出（latestPostsから最新5件）
+    let postsText = '';
+    if (apifyData.latestPosts && Array.isArray(apifyData.latestPosts) && apifyData.latestPosts.length > 0) {
+      const latestPosts = apifyData.latestPosts.slice(0, 5); // 最新5件のみ
+      
+      const postsData = latestPosts.map((post: any, index: number) => {
+        const likesCount = post.likesCount || post.likeCount || 0;
+        const commentsCount = post.commentsCount || post.commentCount || 0;
+        let caption = post.caption || post.text || '';
+        
+        // キャプションが100文字を超える場合はカット
+        if (caption.length > 100) {
+          caption = caption.substring(0, 100) + '...';
+        }
+        
+        return `投稿${index + 1}: ❤️${likesCount} 💬${commentsCount} 「${caption}」`;
+      });
+      
+      postsText = `【直近の投稿データ】\n${postsData.join('\n')}`;
+    }
 
-${profileInfo}`;
+    // Difyに送るプロンプト用テキスト
+    const combinedText = `【プロフィール情報】
+${profileInfo}${postsText ? `\n\n${postsText}` : ''}`;
 
     if (!combinedText.trim()) {
       return NextResponse.json(
