@@ -155,28 +155,73 @@ export default function HomePage() {
         requestBody.competitorId = competitorId.trim();
       }
 
-      const response = await fetch("/api/diagnose", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestBody),
-      });
+      // タイムアウトを90秒に設定（Vercelの60秒制限より長く設定して、タイムアウトエラーを検出）
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 90000); // 90秒
+
+      let response;
+      try {
+        response = await fetch("/api/diagnose", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+          signal: controller.signal,
+        });
+      } catch (fetchError) {
+        clearTimeout(timeoutId);
+        if (fetchError instanceof Error && fetchError.name === "AbortError") {
+          setError("診断に時間がかかりすぎています。しばらくしてから再度お試しください。");
+          setIsLoading(false);
+          return;
+        }
+        throw fetchError;
+      } finally {
+        clearTimeout(timeoutId);
+      }
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "診断に失敗しました");
+        // アカウントが存在しない場合のエラーハンドリング
+        const errorMessage = data.error || "";
+        if (
+          response.status === 404 ||
+          errorMessage.includes("No Instagram data found") ||
+          errorMessage.includes("アカウント") ||
+          errorMessage.includes("private") ||
+          errorMessage.includes("Empty")
+        ) {
+          setError("アカウントが存在しません");
+          setIsLoading(false);
+          return;
+        }
+        throw new Error(errorMessage || "診断に失敗しました");
       }
 
       setResult(data.result);
     } catch (err) {
       console.error("診断エラー:", err);
-      setError(
-        err instanceof Error
-          ? err.message
-          : "診断中にエラーが発生しました。しばらくしてから再度お試しください。"
-      );
+      const errorMessage = err instanceof Error ? err.message : "診断中にエラーが発生しました。しばらくしてから再度お試しください。";
+      
+      // タイムアウトエラーのチェック
+      if (
+        err instanceof Error &&
+        (err.name === "AbortError" ||
+          errorMessage.includes("timeout") ||
+          errorMessage.includes("タイムアウト") ||
+          errorMessage.includes("504") ||
+          errorMessage.includes("Gateway Timeout"))
+      ) {
+        setError("診断に時間がかかりすぎています。しばらくしてから再度お試しください。");
+      }
+      // アカウントが存在しない場合のエラーメッセージをチェック
+      else if (errorMessage.includes("No Instagram data found") || errorMessage.includes("アカウント")) {
+        setError("アカウントが存在しません");
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setIsLoading(false);
     }
