@@ -24,7 +24,7 @@ interface ApifyInstagramData {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { username, mode = 'spicy' } = body;
+    const { username, mode = 'medium' } = body;
 
     if (!username || typeof username !== 'string') {
       return NextResponse.json(
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     }
 
     // モードの検証
-    const validMode = mode === 'mild' ? 'mild' : 'spicy';
+    const validMode = mode === 'mild' ? 'mild' : mode === 'medium' ? 'medium' : 'spicy';
 
     // ユーザー名から @ を除去
     const cleanUsername = username.replace(/^@/, '').trim();
@@ -253,9 +253,12 @@ ${profileInfo}${postsText ? `\n\n${postsText}` : ''}`;
     try {
       // Dify APIに診断リクエストを送信
       // モードに合わせてqueryを変更
-      const queryText = validMode === 'mild'
-        ? 'このアカウントのInstagram診断をお願いします。優しく診断してください。'
-        : 'このアカウントのInstagram診断をお願いします。';
+      let queryText = 'このアカウントのInstagram診断をお願いします。';
+      if (validMode === 'mild') {
+        queryText = 'このアカウントのInstagram診断をお願いします。優しく診断してください。';
+      } else if (validMode === 'medium') {
+        queryText = 'このアカウントのInstagram診断をお願いします。バランスの取れた診断をお願いします。';
+      }
       
       diagnosisResult = await sendDifyChatMessage({
         inputs: {

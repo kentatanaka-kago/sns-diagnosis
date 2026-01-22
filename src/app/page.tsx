@@ -9,7 +9,7 @@ import ReactMarkdown from "react-markdown";
 
 export default function HomePage() {
   const [instagramId, setInstagramId] = useState("");
-  const [mode, setMode] = useState<"spicy" | "mild">("spicy");
+  const [mode, setMode] = useState<"spicy" | "medium" | "mild">("medium");
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -112,7 +112,19 @@ export default function HomePage() {
                       : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
                   }`}
                 >
-                  💀 辛口モード
+                  💀 辛口
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMode("medium")}
+                  disabled={isLoading}
+                  className={`flex-1 h-11 rounded-lg border-2 font-semibold text-sm transition-all ${
+                    mode === "medium"
+                      ? "bg-gradient-to-r from-blue-500 via-teal-500 to-blue-500 text-white border-blue-500 shadow-md"
+                      : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+                  }`}
+                >
+                  👔 標準
                 </button>
                 <button
                   type="button"
@@ -124,7 +136,7 @@ export default function HomePage() {
                       : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
                   }`}
                 >
-                  💖 甘口モード
+                  💖 甘口
                 </button>
               </div>
               
