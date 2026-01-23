@@ -7,6 +7,10 @@ import { sendDifyChatMessage } from '@/lib/dify';
 export const maxDuration = 60; // タイムアウトを60秒に延長
 export const dynamic = 'force-dynamic';
 
+// レートリミット設定
+const RATE_LIMIT_COUNT = 10; // 1日10回まで
+const RATE_LIMIT_WINDOW = 24 * 60 * 60 * 1000; // 24時間（ミリ秒）
+
 interface InstagramCache {
   id: string;
   username: string;
@@ -27,6 +31,53 @@ interface ApifyInstagramData {
 
 export async function POST(request: NextRequest) {
   try {
+    // レートリミット: IPアドレスの取得
+    const forwardedFor = request.headers.get('x-forwarded-for');
+    const ipAddress = forwardedFor ? forwardedFor.split(',')[0].trim() : 'unknown';
+    
+    // レートリミット: 過去24時間のアクセス数をチェック
+    const rateLimitWindowStart = new Date(Date.now() - RATE_LIMIT_WINDOW);
+    
+    const { count, error: countError } = await supabase
+      .from('access_logs')
+      .select('*', { count: 'exact', head: true })
+      .eq('ip_address', ipAddress)
+      .eq('endpoint', 'diagnose')
+      .gte('created_at', rateLimitWindowStart.toISOString());
+    
+    if (countError) {
+      console.error('Rate limit check error:', countError);
+      // エラーが発生しても処理は続行（レートリミットチェックの失敗でサービスを止めない）
+    } else {
+      const accessCount = count || 0;
+      
+      // 制限超過の場合は429エラーを返す
+      if (accessCount >= RATE_LIMIT_COUNT) {
+        return NextResponse.json(
+          {
+            error: 'Too many requests',
+            message: '1日の利用回数の上限に達しました。24時間後に再度お試しください。',
+            retryAfter: 24 * 60 * 60, // 秒単位
+          },
+          { status: 429 }
+        );
+      }
+    }
+    
+    // レートリミット: アクセスログを記録
+    const { error: insertError } = await supabase
+      .from('access_logs')
+      .insert({
+        ip_address: ipAddress,
+        endpoint: 'diagnose',
+        created_at: new Date().toISOString(),
+      });
+    
+    if (insertError) {
+      console.error('Access log insert error:', insertError);
+      // ログ記録の失敗で処理を止めない
+    }
+    
     const body = await request.json();
     const { username, mode = 'medium', competitorId } = body;
 
