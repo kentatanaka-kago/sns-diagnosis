@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
     }
     
     const body = await request.json();
-    const { username, mode = 'medium', competitorId } = body;
+    const { username, mode = 'medium', competitorId, isSegodon = false } = body;
 
     if (!username || typeof username !== 'string') {
       return NextResponse.json(
@@ -438,6 +438,11 @@ ${profileInfo}${postsText ? `\n\n${postsText}` : ''}${competitorInfo ? `\n\n${co
         queryText = 'このアカウントのInstagram診断をお願いします。優しく診断してください。';
       } else if (validMode === 'medium') {
         queryText = 'このアカウントのInstagram診断をお願いします。バランスの取れた診断をお願いします。';
+      }
+      
+      // 西郷どんモードの場合、鹿児島弁の指示を追加
+      if (isSegodon) {
+        queryText += ' あなたは鹿児島の英雄「西郷隆盛（西郷どん）」です。一人称は「おい」、相手は「おはん」。語尾に「〜でごわす」「〜モス」をつけ、豪快な鹿児島弁でアドバイスしてください。';
       }
       
       // 競合アカウントが指定されている場合は、比較診断を依頼

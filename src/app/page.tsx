@@ -20,6 +20,67 @@ export default function HomePage() {
   const [tipIndex, setTipIndex] = useState(0);
   const [shuffledTips, setShuffledTips] = useState<string[]>([]);
   const [dataTimestamp, setDataTimestamp] = useState<Date | null>(null);
+  const [isSegodon, setIsSegodon] = useState(false);
+  const [ashParticles, setAshParticles] = useState<Array<{ id: number; left: number; duration: number; delay: number; size: number }>>([]);
+
+  // 桜島背景コンポーネント（激しい噴火バージョン）
+  const SakurajimaBackground = () => {
+    // 噴煙パーティクル（数を増やしてランダム性を強化）
+    const particles = Array.from({ length: 25 }).map((_, i) => ({
+      id: i,
+      left: 40 + Math.random() * 20 + "%", // 火口付近（中央）から
+      delay: Math.random() * 2 + "s",
+      duration: 2 + Math.random() * 2 + "s", // より高速化（2-4秒）
+      size: 15 + Math.random() * 35 + "px", // より大きなサイズ範囲
+    }));
+
+    return (
+      <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden flex items-end justify-center">
+        {/* 噴煙レイヤー（山より奥） */}
+        <div className="absolute bottom-[10%] w-full h-full flex justify-center items-end">
+          {particles.map((p) => (
+            <div
+              key={p.id}
+              className="absolute rounded-full bg-gradient-to-t from-gray-700 to-gray-500 opacity-0 animate-eruption"
+              style={{
+                left: p.left,
+                bottom: "10%", // 山の頂上付近から発生
+                width: p.size,
+                height: p.size,
+                animationDelay: p.delay,
+                animationDuration: p.duration,
+              }}
+            />
+          ))}
+        </div>
+
+        {/* 山レイヤー（手前）: ゴツゴツした暗いシルエット */}
+        <svg
+          className="w-full h-[120px] md:h-[160px] text-gray-800 drop-shadow-2xl"
+          viewBox="0 0 400 150"
+          preserveAspectRatio="none"
+        >
+          <defs>
+            <linearGradient id="mountainGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#1e3a2a" stopOpacity="1" />
+              <stop offset="50%" stopColor="#2d4a3a" stopOpacity="1" />
+              <stop offset="100%" stopColor="#1a1a1a" stopOpacity="1" />
+            </linearGradient>
+          </defs>
+          <path
+            d="M0,150 L0,120 Q50,120 100,80 L160,30 Q200,10 240,30 L300,80 Q350,120 400,120 L400,150 Z"
+            fill="url(#mountainGradient)"
+            className="drop-shadow-2xl"
+          />
+          {/* マグマの輝き（火口付近） */}
+          <circle cx="200" cy="30" r="15" className="fill-red-600 blur-xl opacity-80 animate-pulse" />
+        </svg>
+        
+        {/* 前景のフォグ（奥行き出し） */}
+        <div className="absolute bottom-0 w-full h-20 bg-gradient-to-t from-white via-white/80 to-transparent" />
+      </div>
+    );
+  };
 
   // インスタ豆知識のリスト（25個）
   const instagramTips = [
@@ -70,17 +131,34 @@ export default function HomePage() {
     // ローディング開始時刻を記録
     const startTime = Date.now();
 
+    // 鹿児島あるあるメッセージ
+    const kagoshimaMessages = [
+      "桜島の灰を払いながら分析中...",
+      "黒豚しゃぶしゃぶを煮込むくらいの時間お待ちください...",
+      "AIが「しろくま」を食べて頭を冷やしています...",
+      "錦江湾を泳いでデータを取得中...",
+      "焼酎のお湯割りを準備中...",
+      "西郷どんが城山から見守っています...",
+    ];
+
     const updateMessage = () => {
       const elapsed = (Date.now() - startTime) / 1000; // 秒
 
-      if (elapsed < 10) {
-        setLoadingMessage("Instagramからデータを取得中... 📡");
-      } else if (elapsed < 20) {
-        setLoadingMessage("投稿のエンゲージメントを分析中... 📊");
-      } else if (elapsed < 30) {
-        setLoadingMessage("AI脳が辛口コメントを生成中... 🧠");
+      if (isSegodon) {
+        // 西郷どんモードの場合、鹿児島あるあるメッセージをランダム表示
+        const randomIndex = Math.floor(Math.random() * kagoshimaMessages.length);
+        setLoadingMessage(kagoshimaMessages[randomIndex]);
       } else {
-        setLoadingMessage("仕上げに毒を盛っています... ☠️");
+        // 通常モード
+        if (elapsed < 10) {
+          setLoadingMessage("Instagramからデータを取得中... 📡");
+        } else if (elapsed < 20) {
+          setLoadingMessage("投稿のエンゲージメントを分析中... 📊");
+        } else if (elapsed < 30) {
+          setLoadingMessage("AI脳が辛口コメントを生成中... 🧠");
+        } else {
+          setLoadingMessage("仕上げに毒を盛っています... ☠️");
+        }
       }
     };
 
@@ -93,7 +171,7 @@ export default function HomePage() {
     return () => {
       clearInterval(messageInterval);
     };
-  }, [isLoading]);
+  }, [isLoading, isSegodon]);
 
   // 豆知識のシャッフルと切り替え
   useEffect(() => {
@@ -119,6 +197,25 @@ export default function HomePage() {
       clearInterval(tipInterval);
     };
   }, [isLoading]);
+
+  // 火山灰パーティクルの生成
+  useEffect(() => {
+    if (!isSegodon) {
+      setAshParticles([]);
+      return;
+    }
+
+    // 火山灰パーティクルを生成（30個程度）
+    const particles = Array.from({ length: 30 }, (_, i) => ({
+      id: i,
+      left: Math.random() * 100, // 0-100%のランダムな位置
+      duration: 5 + Math.random() * 5, // 5-10秒のランダムな速度
+      delay: Math.random() * 2, // 0-2秒のランダムな遅延
+      size: 2 + Math.random() * 4, // 2-6pxのランダムなサイズ
+    }));
+
+    setAshParticles(particles);
+  }, [isSegodon]);
 
   const handleDiagnose = async () => {
     const id = instagramId.trim();
@@ -147,9 +244,10 @@ export default function HomePage() {
     setDataTimestamp(null);
 
     try {
-      const requestBody: { username: string; mode: string; competitorId?: string } = {
+      const requestBody: { username: string; mode: string; competitorId?: string; isSegodon?: boolean } = {
         username: id,
         mode,
+        isSegodon,
       };
       
       // ライバルIDが入力されていれば追加
@@ -271,9 +369,28 @@ export default function HomePage() {
   };
 
   return (
-    <main className="min-h-screen bg-white text-slate-900">
+    <main className={`min-h-screen text-slate-900 relative ${isSegodon ? 'bg-gradient-to-b from-sky-200 via-blue-300 to-blue-800' : 'bg-white'}`}>
+      {/* 火山灰パーティクル */}
+      {isSegodon && ashParticles.map((particle) => (
+        <div
+          key={particle.id}
+          className="ash-particle"
+          style={{
+            left: `${particle.left}%`,
+            width: `${particle.size}px`,
+            height: `${particle.size}px`,
+            animationDuration: `${particle.duration}s`,
+            animationDelay: `${particle.delay}s`,
+          }}
+        />
+      ))}
+      
       {/* ヒーローセクション */}
-      <header className="border-b border-slate-100 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 pb-10 pt-12 text-white">
+      <header className={`relative z-10 border-b border-slate-100 pb-10 pt-12 text-white ${
+        isSegodon 
+          ? 'bg-gradient-to-r from-blue-900 via-teal-800 to-emerald-900' 
+          : 'bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500'
+      }`}>
         <div className="mx-auto flex w-full max-w-md flex-col items-center px-4 text-center sm:max-w-lg">
           <div className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-medium backdrop-blur">
             <Sparkles className="h-4 w-4" />
@@ -291,15 +408,17 @@ export default function HomePage() {
       </header>
 
       {/* フォームカード */}
-      <section className="mx-auto w-full max-w-md px-4 pb-10 pt-6 sm:max-w-lg">
-        <Card className="border-slate-100 shadow-lg">
-          <CardContent className="p-5 sm:p-6">
+      <section className="relative z-10 mx-auto w-full max-w-md px-4 pb-10 pt-6 sm:max-w-lg">
+        <Card className="border-slate-100 shadow-lg relative overflow-hidden">
+          <CardContent className="p-5 sm:p-6 relative">
+            {/* 桜島背景（西郷どんモード時のみ） */}
+            {isSegodon && <SakurajimaBackground />}
             <form
               onSubmit={(e) => {
                 e.preventDefault();
                 handleDiagnose();
               }}
-              className="flex flex-col gap-3"
+              className="flex flex-col gap-3 relative z-10"
             >
               <label className="text-sm font-medium text-slate-800" htmlFor="instagramId">
                 Instagram ID
@@ -309,15 +428,31 @@ export default function HomePage() {
                 placeholder="@username"
                 value={instagramId}
                 onChange={(e) => setInstagramId(e.target.value)}
-                className="h-11"
+                className="h-11 relative z-10"
                 inputMode="text"
                 autoCapitalize="none"
                 autoCorrect="off"
                 disabled={isLoading}
               />
               
+              {/* 西郷どんモード切替 */}
+              <div className="flex items-center gap-3 p-3 rounded-lg border-2 border-slate-200 bg-slate-50 relative z-10">
+                <label className="flex items-center gap-2 cursor-pointer flex-1">
+                  <input
+                    type="checkbox"
+                    checked={isSegodon}
+                    onChange={(e) => setIsSegodon(e.target.checked)}
+                    disabled={isLoading}
+                    className="w-5 h-5 rounded border-2 border-slate-300 text-orange-500 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                  <span className="text-sm font-semibold text-slate-800">
+                    西郷どんモード（鹿児島弁）
+                  </span>
+                </label>
+              </div>
+              
               {/* モード選択 */}
-              <div className="flex gap-2">
+              <div className="flex gap-2 relative z-10">
                 <button
                   type="button"
                   onClick={() => setMode("spicy")}
@@ -357,7 +492,7 @@ export default function HomePage() {
               </div>
               
               {/* 競合比較アコーディオン */}
-              <div className="mt-2">
+              <div className="mt-2 relative z-10">
                 <button
                   type="button"
                   onClick={() => setIsCompetitorExpanded(!isCompetitorExpanded)}
@@ -411,21 +546,38 @@ export default function HomePage() {
                 type="button"
                 onClick={handleDiagnose}
                 disabled={!instagramId.trim() || isLoading}
-                className="mt-1 h-11 w-full bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 text-white shadow-sm hover:opacity-95 disabled:opacity-60"
+                className={`mt-1 w-full text-white shadow-sm hover:opacity-95 disabled:opacity-60 transition-all duration-300 relative z-10 ${
+                  isSegodon
+                    ? "bg-red-600 bg-[url('/sakurajima.png')] bg-cover bg-center bg-no-repeat relative overflow-hidden min-h-[64px] py-4 border-2 border-orange-500"
+                    : "bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 h-11"
+                }`}
+                style={isSegodon ? {} : {}}
               >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    診断中...
-                  </>
-                ) : (
-                  "診断する"
+                {isSegodon && (
+                  <div className="absolute inset-0 bg-black/30 z-0" />
                 )}
+                <span className={`relative z-10 flex items-center justify-center gap-2 ${
+                  isSegodon 
+                    ? 'text-white font-bold text-lg drop-shadow-[0_2px_2px_rgba(0,0,0,0.8)]' 
+                    : ''
+                }`}>
+                  {isLoading ? (
+                    <>
+                      <Loader2 className={`${isSegodon ? 'h-5 w-5' : 'h-4 w-4'} animate-spin`} />
+                      診断中...
+                    </>
+                  ) : (
+                    <>
+                      {isSegodon && <span className="text-xl">🌋</span>}
+                      {isSegodon ? "診断するでごわす" : "診断する"}
+                    </>
+                  )}
+                </span>
               </Button>
               
               {/* リッチなローディング画面 */}
               {isLoading && (
-                <div className="mt-6 animate-in fade-in duration-300">
+                <div className="mt-6 animate-in fade-in duration-300 relative z-10">
                   <div className="flex flex-col items-center justify-center rounded-lg border-2 border-purple-200 bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50 p-8">
                     {/* スピナー（パルスアニメーション） */}
                     <div className="relative mb-6">
@@ -455,7 +607,7 @@ export default function HomePage() {
               )}
               
               {error && (
-                <div className="mt-2 rounded-lg bg-red-50 border border-red-200 p-3">
+                <div className="mt-2 rounded-lg bg-red-50 border border-red-200 p-3 relative z-10">
                   <p className="text-sm text-red-800">{error}</p>
                 </div>
               )}
@@ -505,7 +657,7 @@ export default function HomePage() {
                 };
                 
                 return (
-                  <div className="mt-4 rounded-lg bg-slate-50 border border-slate-200 p-4">
+                  <div className="mt-4 rounded-lg bg-slate-50 border border-slate-200 p-4 relative z-10">
                     <div className="flex items-start justify-between mb-2">
                       <h3 className="text-sm font-semibold text-slate-900">診断結果</h3>
                       {/* コピーボタン */}
@@ -667,7 +819,7 @@ export default function HomePage() {
       </section>
 
       {/* 3つの診断ポイント */}
-      <section className="mx-auto w-full max-w-md px-4 pb-16 sm:max-w-lg">
+      <section className="relative z-10 mx-auto w-full max-w-md px-4 pb-16 sm:max-w-lg">
         <h2 className="text-lg font-bold text-slate-900">3つの診断ポイント</h2>
         <p className="mt-2 text-xs text-slate-500">
           「なんとなく投稿」を卒業して、伸びるアカウントの型に近づけます。

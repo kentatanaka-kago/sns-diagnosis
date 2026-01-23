@@ -123,3 +123,42 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* 火山灰アニメーション */
+@keyframes fall {
+  0% { transform: translateY(-10vh) translateX(-10px) rotate(0deg); opacity: 0; }
+  10% { opacity: 0.8; }
+  100% { transform: translateY(110vh) translateX(20px) rotate(360deg); opacity: 0; }
+}
+
+.ash-particle {
+  position: fixed;
+  top: -10vh;
+  background: rgba(120, 113, 108, 0.6); /* 灰の色 */
+  border-radius: 4px;
+  pointer-events: none; /* クリックを邪魔しない */
+  z-index: 0; /* 背景扱い */
+  animation: fall linear infinite;
+}
+
+/* 噴煙アニメーション（激しい噴火バージョン） */
+@keyframes eruption {
+  0% {
+    transform: translateY(0) scale(1) translateX(0);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.9;
+  }
+  100% {
+    /* 上に大きく広がりながら昇る */
+    transform: translateY(-200px) scale(6) translateX(var(--tw-translate-x, 20px));
+    opacity: 0;
+  }
+}
+
+.animate-eruption {
+  animation-name: eruption;
+  animation-timing-function: ease-out;
+  animation-iteration-count: infinite;
+}
