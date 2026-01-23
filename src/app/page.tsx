@@ -146,7 +146,7 @@ export default function HomePage() {
     const updateMessage = () => {
       const elapsed = (Date.now() - startTime) / 1000; // 秒
 
-      if (displayMode === 'segodon') {
+      if (isSegodon || displayMode === 'segodon') {
         // 西郷どんモードの場合、鹿児島あるあるメッセージをランダム表示
         const randomIndex = Math.floor(Math.random() * kagoshimaMessages.length);
         setLoadingMessage(kagoshimaMessages[randomIndex]);
@@ -173,7 +173,7 @@ export default function HomePage() {
     return () => {
       clearInterval(messageInterval);
     };
-  }, [isLoading, displayMode]);
+  }, [isLoading, displayMode, isSegodon]);
 
   // 豆知識のシャッフルと切り替え
   useEffect(() => {
@@ -244,8 +244,14 @@ export default function HomePage() {
     setError(null);
     setResult(null);
     setDataTimestamp(null);
-    setLanguageTab('standard');
-    setDisplayMode('standard');
+    // せごどんモードの場合は鹿児島弁タブを初期表示
+    if (isSegodon) {
+      setLanguageTab('segodon');
+      setDisplayMode('segodon');
+    } else {
+      setLanguageTab('standard');
+      setDisplayMode('standard');
+    }
 
     try {
       const requestBody: { username: string; mode: string; competitorId?: string; isSegodon?: boolean } = {
@@ -319,10 +325,16 @@ export default function HomePage() {
 
       setResult(data.result);
       
-      // 区切り文字で分割されている場合、タブと表示モードをリセット
+      // 区切り文字で分割されている場合、タブと表示モードを設定
       if (data.result && data.result.includes('<<<SEGODON_SPLIT>>>')) {
-        setLanguageTab('standard');
-        setDisplayMode('standard');
+        // せごどんモードの場合は鹿児島弁タブを初期表示
+        if (isSegodon) {
+          setLanguageTab('segodon');
+          setDisplayMode('segodon');
+        } else {
+          setLanguageTab('standard');
+          setDisplayMode('standard');
+        }
       }
       
       // データの日時をセット（キャッシュの場合）
