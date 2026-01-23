@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             error: 'Too many requests',
-            message: '1日の利用回数の上限に達しました。24時間後に再度お試しください。',
+            message: '本日の診断回数の上限に達しました。システムの負荷を軽減するため、しばらく時間をおいてから再度お試しください。',
             retryAfter: 24 * 60 * 60, // 秒単位
           },
           { status: 429 }
