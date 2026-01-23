@@ -22,6 +22,8 @@ export default function HomePage() {
   const [dataTimestamp, setDataTimestamp] = useState<Date | null>(null);
   const [isSegodon, setIsSegodon] = useState(false);
   const [ashParticles, setAshParticles] = useState<Array<{ id: number; left: number; duration: number; delay: number; size: number }>>([]);
+  const [languageTab, setLanguageTab] = useState<'standard' | 'segodon'>('standard');
+  const [displayMode, setDisplayMode] = useState<'standard' | 'segodon'>('standard');
 
   // 桜島背景コンポーネント（激しい噴火バージョン）
   const SakurajimaBackground = () => {
@@ -35,7 +37,7 @@ export default function HomePage() {
     }));
 
     return (
-      <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden flex items-end justify-center">
+      <div className="absolute top-[180px] left-0 right-0 z-0 pointer-events-none overflow-hidden flex items-end justify-center">
         {/* 噴煙レイヤー（山より奥） */}
         <div className="absolute bottom-[10%] w-full h-full flex justify-center items-end">
           {particles.map((p) => (
@@ -144,7 +146,7 @@ export default function HomePage() {
     const updateMessage = () => {
       const elapsed = (Date.now() - startTime) / 1000; // 秒
 
-      if (isSegodon) {
+      if (displayMode === 'segodon') {
         // 西郷どんモードの場合、鹿児島あるあるメッセージをランダム表示
         const randomIndex = Math.floor(Math.random() * kagoshimaMessages.length);
         setLoadingMessage(kagoshimaMessages[randomIndex]);
@@ -171,7 +173,7 @@ export default function HomePage() {
     return () => {
       clearInterval(messageInterval);
     };
-  }, [isLoading, isSegodon]);
+  }, [isLoading, displayMode]);
 
   // 豆知識のシャッフルと切り替え
   useEffect(() => {
@@ -200,7 +202,7 @@ export default function HomePage() {
 
   // 火山灰パーティクルの生成
   useEffect(() => {
-    if (!isSegodon) {
+    if (displayMode !== 'segodon') {
       setAshParticles([]);
       return;
     }
@@ -215,7 +217,7 @@ export default function HomePage() {
     }));
 
     setAshParticles(particles);
-  }, [isSegodon]);
+  }, [displayMode]);
 
   const handleDiagnose = async () => {
     const id = instagramId.trim();
@@ -242,6 +244,8 @@ export default function HomePage() {
     setError(null);
     setResult(null);
     setDataTimestamp(null);
+    setLanguageTab('standard');
+    setDisplayMode('standard');
 
     try {
       const requestBody: { username: string; mode: string; competitorId?: string; isSegodon?: boolean } = {
@@ -315,6 +319,12 @@ export default function HomePage() {
 
       setResult(data.result);
       
+      // 区切り文字で分割されている場合、タブと表示モードをリセット
+      if (data.result && data.result.includes('<<<SEGODON_SPLIT>>>')) {
+        setLanguageTab('standard');
+        setDisplayMode('standard');
+      }
+      
       // データの日時をセット（キャッシュの場合）
       if (data.createdAt) {
         setDataTimestamp(new Date(data.createdAt));
@@ -350,12 +360,23 @@ export default function HomePage() {
   const handleCopyResult = async () => {
     if (!result) return;
 
+    // 区切り文字で分割されている場合、現在選択されているタブのテキストを使用
+    let textToCopy = result;
+    if (result.includes('<<<SEGODON_SPLIT>>>')) {
+      const parts = result.split('<<<SEGODON_SPLIT>>>');
+      if (parts.length >= 2) {
+        textToCopy = languageTab === 'segodon' 
+          ? parts.slice(1).join('<<<SEGODON_SPLIT>>>').trim()
+          : parts[0].trim();
+      }
+    }
+
     // ハッシュタグセクションより前の部分だけを抽出
     const hashtagPattern = /(##\s*)?ハッシュタグ[：:]\s*/i;
-    const hashtagIndex = result.search(hashtagPattern);
-    const textToCopy = hashtagIndex !== -1 
-      ? result.substring(0, hashtagIndex).trim()
-      : result;
+    const hashtagIndex = textToCopy.search(hashtagPattern);
+    const finalTextToCopy = hashtagIndex !== -1 
+      ? textToCopy.substring(0, hashtagIndex).trim()
+      : textToCopy;
 
     try {
       await navigator.clipboard.writeText(textToCopy);
@@ -369,9 +390,9 @@ export default function HomePage() {
   };
 
   return (
-    <main className={`min-h-screen text-slate-900 relative ${isSegodon ? 'bg-gradient-to-b from-sky-200 via-blue-300 to-blue-800' : 'bg-white'}`}>
+    <main className={`min-h-screen text-slate-900 relative ${displayMode === 'segodon' ? 'bg-gradient-to-b from-sky-200 via-blue-300 to-blue-800' : 'bg-white'}`}>
       {/* 火山灰パーティクル */}
-      {isSegodon && ashParticles.map((particle) => (
+      {displayMode === 'segodon' && ashParticles.map((particle) => (
         <div
           key={particle.id}
           className="ash-particle"
@@ -387,7 +408,7 @@ export default function HomePage() {
       
       {/* ヒーローセクション */}
       <header className={`relative z-10 border-b border-slate-100 pb-10 pt-12 text-white ${
-        isSegodon 
+        displayMode === 'segodon'
           ? 'bg-gradient-to-r from-blue-900 via-teal-800 to-emerald-900' 
           : 'bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500'
       }`}>
@@ -411,8 +432,8 @@ export default function HomePage() {
       <section className="relative z-10 mx-auto w-full max-w-md px-4 pb-10 pt-6 sm:max-w-lg">
         <Card className="border-slate-100 shadow-lg relative overflow-hidden">
           <CardContent className="p-5 sm:p-6 relative">
-            {/* 桜島背景（西郷どんモード時のみ） */}
-            {isSegodon && <SakurajimaBackground />}
+            {/* 桜島背景（西郷どんモード時、常に表示） */}
+            {(isSegodon || displayMode === 'segodon') && <SakurajimaBackground />}
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -459,8 +480,12 @@ export default function HomePage() {
                   disabled={isLoading}
                   className={`flex-1 h-11 rounded-lg border-2 font-semibold text-sm transition-all ${
                     mode === "spicy"
-                      ? "bg-gradient-to-r from-red-500 via-purple-600 to-red-500 text-white border-red-500 shadow-md"
-                      : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+                      ? (isSegodon || displayMode === 'segodon')
+                        ? "bg-gradient-to-r from-red-500/70 via-purple-600/70 to-red-500/70 text-white border-red-500 shadow-md backdrop-blur-sm"
+                        : "bg-gradient-to-r from-red-500 via-purple-600 to-red-500 text-white border-red-500 shadow-md"
+                      : (isSegodon || displayMode === 'segodon')
+                        ? "bg-white/60 text-slate-700 border-slate-300 hover:border-slate-400 backdrop-blur-sm"
+                        : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
                   }`}
                 >
                   💀 辛口
@@ -471,8 +496,12 @@ export default function HomePage() {
                   disabled={isLoading}
                   className={`flex-1 h-11 rounded-lg border-2 font-semibold text-sm transition-all ${
                     mode === "medium"
-                      ? "bg-gradient-to-r from-blue-500 via-teal-500 to-blue-500 text-white border-blue-500 shadow-md"
-                      : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+                      ? (isSegodon || displayMode === 'segodon')
+                        ? "bg-gradient-to-r from-blue-500/70 via-teal-500/70 to-blue-500/70 text-white border-blue-500 shadow-md backdrop-blur-sm"
+                        : "bg-gradient-to-r from-blue-500 via-teal-500 to-blue-500 text-white border-blue-500 shadow-md"
+                      : (isSegodon || displayMode === 'segodon')
+                        ? "bg-white/60 text-slate-700 border-slate-300 hover:border-slate-400 backdrop-blur-sm"
+                        : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
                   }`}
                 >
                   👔 標準
@@ -483,8 +512,12 @@ export default function HomePage() {
                   disabled={isLoading}
                   className={`flex-1 h-11 rounded-lg border-2 font-semibold text-sm transition-all ${
                     mode === "mild"
-                      ? "bg-gradient-to-r from-pink-400 via-orange-400 to-pink-400 text-white border-pink-400 shadow-md"
-                      : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
+                      ? (isSegodon || displayMode === 'segodon')
+                        ? "bg-gradient-to-r from-pink-400/70 via-orange-400/70 to-pink-400/70 text-white border-pink-400 shadow-md backdrop-blur-sm"
+                        : "bg-gradient-to-r from-pink-400 via-orange-400 to-pink-400 text-white border-pink-400 shadow-md"
+                      : (isSegodon || displayMode === 'segodon')
+                        ? "bg-white/60 text-slate-700 border-slate-300 hover:border-slate-400 backdrop-blur-sm"
+                        : "bg-white text-slate-600 border-slate-200 hover:border-slate-300"
                   }`}
                 >
                   💖 甘口
@@ -548,13 +581,13 @@ export default function HomePage() {
                 disabled={!instagramId.trim() || isLoading}
                 className={`mt-1 w-full text-white shadow-sm hover:opacity-95 disabled:opacity-60 transition-all duration-300 relative z-10 ${
                   isSegodon
-                    ? "bg-red-600 bg-[url('/sakurajima.png')] bg-cover bg-center bg-no-repeat relative overflow-hidden min-h-[64px] py-4 border-2 border-orange-500"
-                    : "bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 h-11"
+                    ? "bg-red-600/80 bg-[url('/sakurajima.png')] bg-cover bg-center bg-no-repeat relative overflow-hidden min-h-[64px] py-4 border-2 border-orange-500/80"
+                    : "bg-gradient-to-r from-purple-500/90 via-pink-500/90 to-orange-500/90 h-11"
                 }`}
                 style={isSegodon ? {} : {}}
               >
                 {isSegodon && (
-                  <div className="absolute inset-0 bg-black/30 z-0" />
+                  <div className="absolute inset-0 bg-black/20 z-0" />
                 )}
                 <span className={`relative z-10 flex items-center justify-center gap-2 ${
                   isSegodon 
@@ -578,10 +611,18 @@ export default function HomePage() {
               {/* リッチなローディング画面 */}
               {isLoading && (
                 <div className="mt-6 animate-in fade-in duration-300 relative z-10">
-                  <div className="flex flex-col items-center justify-center rounded-lg border-2 border-purple-200 bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50 p-8">
+                  <div className={`flex flex-col items-center justify-center rounded-lg border-2 p-8 backdrop-blur-sm ${
+                    displayMode === 'segodon'
+                      ? 'border-blue-300/50 bg-white/60'
+                      : 'border-purple-200 bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50'
+                  }`}>
                     {/* スピナー（パルスアニメーション） */}
                     <div className="relative mb-6">
-                      <div className="h-20 w-20 animate-pulse rounded-full bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 opacity-75"></div>
+                      <div className={`h-20 w-20 animate-pulse rounded-full opacity-75 ${
+                        displayMode === 'segodon'
+                          ? 'bg-gradient-to-r from-blue-600 via-teal-600 to-emerald-600'
+                          : 'bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500'
+                      }`}></div>
                       <div className="absolute inset-0 flex items-center justify-center">
                         <Loader2 className="h-10 w-10 animate-spin text-white" />
                       </div>
@@ -593,10 +634,18 @@ export default function HomePage() {
                     </p>
                     
                     {/* 豆知識エリア */}
-                    <div className="w-full max-w-md rounded-lg border border-purple-200 bg-white/80 p-4 shadow-sm">
+                    <div className={`w-full max-w-md rounded-lg border p-4 shadow-sm backdrop-blur-sm ${
+                      displayMode === 'segodon'
+                        ? 'border-blue-300/50 bg-white/70'
+                        : 'border-purple-200 bg-white/80'
+                    }`}>
                       <div className="mb-2 flex items-center gap-2">
                         <span className="text-xl">💡</span>
-                        <span className="text-sm font-semibold text-purple-700">今日のインスタ豆知識</span>
+                        <span className={`text-sm font-semibold ${
+                          displayMode === 'segodon' ? 'text-blue-700' : 'text-purple-700'
+                        }`}>
+                          今日のインスタ豆知識
+                        </span>
                       </div>
                       <p className="text-sm leading-relaxed text-slate-700 animate-in fade-in duration-500">
                         {shuffledTips.length > 0 ? shuffledTips[tipIndex] : instagramTips[0]}
@@ -612,21 +661,38 @@ export default function HomePage() {
                 </div>
               )}
               {result && (() => {
+                // 区切り文字で分割（常にチェック）
+                let standardText = result;
+                let segodonText = '';
+                let hasLanguageSplit = false;
+                
+                if (result.includes('<<<SEGODON_SPLIT>>>')) {
+                  const parts = result.split('<<<SEGODON_SPLIT>>>');
+                  if (parts.length >= 2) {
+                    standardText = parts[0].trim();
+                    segodonText = parts.slice(1).join('<<<SEGODON_SPLIT>>>').trim();
+                    hasLanguageSplit = true;
+                  }
+                }
+                
+                // 表示するテキストを選択
+                const displayText = hasLanguageSplit && languageTab === 'segodon' ? segodonText : standardText;
+                
                 // ハッシュタグセクションを検出して分割
                 // 複数のパターンに対応: "## ハッシュタグ", "## ハッシュタグ:", "ハッシュタグ:", "ハッシュタグ："など
                 const hashtagPattern = /(##\s*)?ハッシュタグ[：:]\s*/i;
-                const hashtagMatch = result.match(hashtagPattern);
-                const hashtagIndex = hashtagMatch ? result.search(hashtagPattern) : -1;
+                const hashtagMatch = displayText.match(hashtagPattern);
+                const hashtagIndex = hashtagMatch ? displayText.search(hashtagPattern) : -1;
                 
-                let visibleText = result;
+                let visibleText = displayText;
                 let hasHashtagSection = false;
                 let hashtagTitle = '';
                 
                 if (hashtagIndex !== -1) {
-                  visibleText = result.substring(0, hashtagIndex).trim();
+                  visibleText = displayText.substring(0, hashtagIndex).trim();
                   hasHashtagSection = true;
                   // ハッシュタグのタイトル部分を抽出（改行まで、または次の行まで）
-                  const afterHashtag = result.substring(hashtagIndex);
+                  const afterHashtag = displayText.substring(hashtagIndex);
                   const titleMatch = afterHashtag.match(/^(##\s*)?ハッシュタグ[：:]\s*/i);
                   if (titleMatch) {
                     hashtagTitle = titleMatch[0].trim();
@@ -680,6 +746,40 @@ export default function HomePage() {
                       </button>
                     </div>
                     {/* アカウント名とモードを先頭に表示 */}
+                    {/* 言語切り替えタブ（分割されている場合のみ） */}
+                    {hasLanguageSplit && (
+                      <div className="mb-4 flex gap-2 border-b border-slate-200">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLanguageTab('standard');
+                            setDisplayMode('standard');
+                          }}
+                          className={`px-4 py-2 text-sm font-medium transition-colors ${
+                            languageTab === 'standard'
+                              ? 'text-blue-600 border-b-2 border-blue-600'
+                              : 'text-slate-500 hover:text-slate-700'
+                          }`}
+                        >
+                          標準語
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLanguageTab('segodon');
+                            setDisplayMode('segodon');
+                          }}
+                          className={`px-4 py-2 text-sm font-medium transition-colors ${
+                            languageTab === 'segodon'
+                              ? 'text-orange-600 border-b-2 border-orange-600'
+                              : 'text-slate-500 hover:text-slate-700'
+                          }`}
+                        >
+                          鹿児島弁
+                        </button>
+                      </div>
+                    )}
+                    
                     {/* データ日時インフォメーション */}
                     {dataTimestamp && (
                       <div className="mb-4 rounded-lg bg-blue-50 border border-blue-200 p-3">

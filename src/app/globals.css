@@ -151,8 +151,8 @@
     opacity: 0.9;
   }
   100% {
-    /* 上に大きく広がりながら昇る */
-    transform: translateY(-200px) scale(6) translateX(var(--tw-translate-x, 20px));
+    /* 上に大きく広がりながら昇る（高めまで到達） */
+    transform: translateY(-400px) scale(6) translateX(var(--tw-translate-x, 20px));
     opacity: 0;
   }
 }
