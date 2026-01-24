@@ -133,34 +133,18 @@ export default function HomePage() {
     // ローディング開始時刻を記録
     const startTime = Date.now();
 
-    // 鹿児島あるあるメッセージ
-    const kagoshimaMessages = [
-      "桜島の灰を払いながら分析中...",
-      "黒豚しゃぶしゃぶを煮込むくらいの時間お待ちください...",
-      "AIが「しろくま」を食べて頭を冷やしています...",
-      "錦江湾を泳いでデータを取得中...",
-      "焼酎のお湯割りを準備中...",
-      "西郷どんが城山から見守っています...",
-    ];
-
     const updateMessage = () => {
       const elapsed = (Date.now() - startTime) / 1000; // 秒
 
-      if (isSegodon || displayMode === 'segodon') {
-        // 西郷どんモードの場合、鹿児島あるあるメッセージをランダム表示
-        const randomIndex = Math.floor(Math.random() * kagoshimaMessages.length);
-        setLoadingMessage(kagoshimaMessages[randomIndex]);
+      // 常に通常モードのメッセージを表示
+      if (elapsed < 10) {
+        setLoadingMessage("Instagramからデータを取得中... 📡");
+      } else if (elapsed < 20) {
+        setLoadingMessage("投稿のエンゲージメントを分析中... 📊");
+      } else if (elapsed < 30) {
+        setLoadingMessage("AI脳が辛口コメントを生成中... 🧠");
       } else {
-        // 通常モード
-        if (elapsed < 10) {
-          setLoadingMessage("Instagramからデータを取得中... 📡");
-        } else if (elapsed < 20) {
-          setLoadingMessage("投稿のエンゲージメントを分析中... 📊");
-        } else if (elapsed < 30) {
-          setLoadingMessage("AI脳が辛口コメントを生成中... 🧠");
-        } else {
-          setLoadingMessage("仕上げに毒を盛っています... ☠️");
-        }
+        setLoadingMessage("仕上げに毒を盛っています... ☠️");
       }
     };
 
@@ -173,7 +157,7 @@ export default function HomePage() {
     return () => {
       clearInterval(messageInterval);
     };
-  }, [isLoading, displayMode, isSegodon]);
+  }, [isLoading]);
 
   // 豆知識のシャッフルと切り替え
   useEffect(() => {
