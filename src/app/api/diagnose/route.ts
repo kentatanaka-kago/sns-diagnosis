@@ -220,7 +220,7 @@ export async function POST(request: NextRequest) {
           }
           
           // usernameでデータを分類
-          const itemUsername = dataItem.username || '';
+          const itemUsername = String(dataItem.username || '');
           const normalizedItemUsername = itemUsername.toLowerCase().replace(/^@/, '');
           
           if (normalizedItemUsername === cleanUsername.toLowerCase()) {
@@ -260,7 +260,7 @@ export async function POST(request: NextRequest) {
           }
           
           if (dataItem.error) {
-            const errorDesc = dataItem.errorDescription || dataItem.error || 'Unknown error';
+            const errorDesc = String(dataItem.errorDescription || dataItem.error || 'Unknown error');
             console.log('Apify returned error:', errorDesc);
             
             // より詳細なエラーメッセージ
