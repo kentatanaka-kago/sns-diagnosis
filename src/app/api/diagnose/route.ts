@@ -445,6 +445,9 @@ ${profileInfo}${postsText ? `\n\n${postsText}` : ''}${competitorInfo ? `\n\n${co
         queryText += ' 競合アカウントの情報も提供されているので、比較分析を含めて診断してください。';
       }
       
+      // 県外アピールセクションの追加指示
+      queryText += '\n\n【出力形式】\n1. まず、通常の診断結果を出力してください。\n2. 診断結果の最後に、区切り文字 `<<<APPEAL_SPLIT>>>` を1行だけ出力してください。\n3. その後に、「このアカウントを鹿児島県外のユーザーにアピールするための具体的な戦略・投稿アイデア」を3つ提案してください。\n各提案は箇条書きで、具体的で実践可能な内容にしてください。';
+      
       diagnosisResult = await sendDifyChatMessage({
         inputs: {
           profile_context: combinedText,

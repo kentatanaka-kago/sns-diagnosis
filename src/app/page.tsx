@@ -23,6 +23,7 @@ export default function HomePage() {
   const [isSegodon, setIsSegodon] = useState(false);
   const [ashParticles, setAshParticles] = useState<Array<{ id: number; left: number; duration: number; delay: number; size: number }>>([]);
   const [displayMode, setDisplayMode] = useState<'standard' | 'segodon'>('standard');
+  const [activeContentTab, setActiveContentTab] = useState<'diagnosis' | 'appeal'>('diagnosis');
 
   // 桜島背景コンポーネント（激しい噴火バージョン）
   const SakurajimaBackground = () => {
@@ -252,6 +253,7 @@ export default function HomePage() {
     setError(null);
     setResult(null);
     setDataTimestamp(null);
+    setActiveContentTab('diagnosis'); // 診断実行時にタブをリセット
     // せごどんモードの場合は視覚演出を適用
     if (isSegodon) {
       setDisplayMode('segodon');
@@ -366,12 +368,24 @@ export default function HomePage() {
   const handleCopyResult = async () => {
     if (!result) return;
 
+    // APPEAL_SPLITで分割（診断結果と県外アピール）
+    let textToCopy = result;
+    if (result.includes('<<<APPEAL_SPLIT>>>')) {
+      const parts = result.split('<<<APPEAL_SPLIT>>>');
+      if (parts.length >= 2) {
+        // 現在のタブに応じてコピーするテキストを選択
+        textToCopy = activeContentTab === 'appeal' 
+          ? parts.slice(1).join('<<<APPEAL_SPLIT>>>').trim()
+          : parts[0].trim();
+      }
+    }
+
     // ハッシュタグセクションより前の部分だけを抽出
     const hashtagPattern = /(##\s*)?ハッシュタグ[：:]\s*/i;
-    const hashtagIndex = result.search(hashtagPattern);
+    const hashtagIndex = textToCopy.search(hashtagPattern);
     const finalTextToCopy = hashtagIndex !== -1 
-      ? result.substring(0, hashtagIndex).trim()
-      : result;
+      ? textToCopy.substring(0, hashtagIndex).trim()
+      : textToCopy;
 
     try {
       await navigator.clipboard.writeText(finalTextToCopy);
@@ -656,21 +670,40 @@ export default function HomePage() {
                 </div>
               )}
               {result && (() => {
+                // APPEAL_SPLITで分割（診断結果と県外アピール）
+                let diagnosisContent = result;
+                let appealContent = '';
+                let hasAppealContent = false;
+                
+                if (result.includes('<<<APPEAL_SPLIT>>>')) {
+                  const parts = result.split('<<<APPEAL_SPLIT>>>');
+                  if (parts.length >= 2) {
+                    diagnosisContent = parts[0].trim();
+                    appealContent = parts.slice(1).join('<<<APPEAL_SPLIT>>>').trim();
+                    hasAppealContent = true;
+                  }
+                }
+                
+                // 表示するテキストを選択
+                const displayText = activeContentTab === 'appeal' && hasAppealContent 
+                  ? appealContent 
+                  : diagnosisContent;
+                
                 // ハッシュタグセクションを検出して分割
                 // 複数のパターンに対応: "## ハッシュタグ", "## ハッシュタグ:", "ハッシュタグ:", "ハッシュタグ："など
                 const hashtagPattern = /(##\s*)?ハッシュタグ[：:]\s*/i;
-                const hashtagMatch = result.match(hashtagPattern);
-                const hashtagIndex = hashtagMatch ? result.search(hashtagPattern) : -1;
+                const hashtagMatch = displayText.match(hashtagPattern);
+                const hashtagIndex = hashtagMatch ? displayText.search(hashtagPattern) : -1;
                 
-                let visibleText = result;
+                let visibleText = displayText;
                 let hasHashtagSection = false;
                 let hashtagTitle = '';
                 
                 if (hashtagIndex !== -1) {
-                  visibleText = result.substring(0, hashtagIndex).trim();
+                  visibleText = displayText.substring(0, hashtagIndex).trim();
                   hasHashtagSection = true;
                   // ハッシュタグのタイトル部分を抽出（改行まで、または次の行まで）
-                  const afterHashtag = result.substring(hashtagIndex);
+                  const afterHashtag = displayText.substring(hashtagIndex);
                   const titleMatch = afterHashtag.match(/^(##\s*)?ハッシュタグ[：:]\s*/i);
                   if (titleMatch) {
                     hashtagTitle = titleMatch[0].trim();
@@ -723,6 +756,38 @@ export default function HomePage() {
                         )}
                       </button>
                     </div>
+                    
+                    {/* タブUI（県外アピールコンテンツがある場合のみ表示） */}
+                    {hasAppealContent && (
+                      <div className="mb-4 flex gap-2 border-b border-slate-200">
+                        <button
+                          type="button"
+                          onClick={() => setActiveContentTab('diagnosis')}
+                          className={`px-4 py-2 text-sm font-medium transition-colors ${
+                            activeContentTab === 'diagnosis'
+                              ? (isSegodon || displayMode === 'segodon')
+                                ? 'text-orange-600 border-b-2 border-orange-600'
+                                : 'text-blue-600 border-b-2 border-blue-600'
+                              : 'text-slate-500 hover:text-slate-700'
+                          }`}
+                        >
+                          📊 診断結果
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setActiveContentTab('appeal')}
+                          className={`px-4 py-2 text-sm font-medium transition-colors ${
+                            activeContentTab === 'appeal'
+                              ? (isSegodon || displayMode === 'segodon')
+                                ? 'text-orange-600 border-b-2 border-orange-600'
+                                : 'text-blue-600 border-b-2 border-blue-600'
+                              : 'text-slate-500 hover:text-slate-700'
+                          }`}
+                        >
+                          🌏 県外アピール
+                        </button>
+                      </div>
+                    )}
                     
                     {/* データ日時インフォメーション */}
                     {dataTimestamp && (
