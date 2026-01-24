@@ -22,7 +22,6 @@ export default function HomePage() {
   const [dataTimestamp, setDataTimestamp] = useState<Date | null>(null);
   const [isSegodon, setIsSegodon] = useState(false);
   const [ashParticles, setAshParticles] = useState<Array<{ id: number; left: number; duration: number; delay: number; size: number }>>([]);
-  const [languageTab, setLanguageTab] = useState<'standard' | 'segodon'>('standard');
   const [displayMode, setDisplayMode] = useState<'standard' | 'segodon'>('standard');
 
   // 桜島背景コンポーネント（激しい噴火バージョン）
@@ -200,6 +199,15 @@ export default function HomePage() {
     };
   }, [isLoading]);
 
+  // isSegodonが変更されたときにdisplayModeも更新
+  useEffect(() => {
+    if (isSegodon) {
+      setDisplayMode('segodon');
+    } else {
+      setDisplayMode('standard');
+    }
+  }, [isSegodon]);
+
   // 火山灰パーティクルの生成
   useEffect(() => {
     if (!(isSegodon || displayMode === 'segodon')) {
@@ -244,12 +252,10 @@ export default function HomePage() {
     setError(null);
     setResult(null);
     setDataTimestamp(null);
-    // せごどんモードの場合は鹿児島弁タブを初期表示
+    // せごどんモードの場合は視覚演出を適用
     if (isSegodon) {
-      setLanguageTab('segodon');
       setDisplayMode('segodon');
     } else {
-      setLanguageTab('standard');
       setDisplayMode('standard');
     }
 
@@ -325,18 +331,6 @@ export default function HomePage() {
 
       setResult(data.result);
       
-      // 区切り文字で分割されている場合、タブと表示モードを設定
-      if (data.result && data.result.includes('<<<SEGODON_SPLIT>>>')) {
-        // せごどんモードの場合は鹿児島弁タブを初期表示
-        if (isSegodon) {
-          setLanguageTab('segodon');
-          setDisplayMode('segodon');
-        } else {
-          setLanguageTab('standard');
-          setDisplayMode('standard');
-        }
-      }
-      
       // データの日時をセット（キャッシュの場合）
       if (data.createdAt) {
         setDataTimestamp(new Date(data.createdAt));
@@ -372,26 +366,15 @@ export default function HomePage() {
   const handleCopyResult = async () => {
     if (!result) return;
 
-    // 区切り文字で分割されている場合、現在選択されているタブのテキストを使用
-    let textToCopy = result;
-    if (result.includes('<<<SEGODON_SPLIT>>>')) {
-      const parts = result.split('<<<SEGODON_SPLIT>>>');
-      if (parts.length >= 2) {
-        textToCopy = languageTab === 'segodon' 
-          ? parts.slice(1).join('<<<SEGODON_SPLIT>>>').trim()
-          : parts[0].trim();
-      }
-    }
-
     // ハッシュタグセクションより前の部分だけを抽出
     const hashtagPattern = /(##\s*)?ハッシュタグ[：:]\s*/i;
-    const hashtagIndex = textToCopy.search(hashtagPattern);
+    const hashtagIndex = result.search(hashtagPattern);
     const finalTextToCopy = hashtagIndex !== -1 
-      ? textToCopy.substring(0, hashtagIndex).trim()
-      : textToCopy;
+      ? result.substring(0, hashtagIndex).trim()
+      : result;
 
     try {
-      await navigator.clipboard.writeText(textToCopy);
+      await navigator.clipboard.writeText(finalTextToCopy);
       setCopyStatus("copied");
       setTimeout(() => {
         setCopyStatus("idle");
@@ -479,7 +462,7 @@ export default function HomePage() {
                     className="w-5 h-5 rounded border-2 border-slate-300 text-orange-500 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                   <span className="text-sm font-semibold text-slate-800">
-                    西郷どんモード（鹿児島弁）
+                    西郷どんモード
                   </span>
                 </label>
               </div>
@@ -624,14 +607,14 @@ export default function HomePage() {
               {isLoading && (
                 <div className="mt-6 animate-in fade-in duration-300 relative z-10">
                   <div className={`flex flex-col items-center justify-center rounded-lg border-2 p-8 backdrop-blur-sm ${
-                    displayMode === 'segodon'
+                    (isSegodon || displayMode === 'segodon')
                       ? 'border-blue-300/50 bg-white/60'
                       : 'border-purple-200 bg-gradient-to-br from-purple-50 via-pink-50 to-orange-50'
                   }`}>
                     {/* スピナー（パルスアニメーション） */}
                     <div className="relative mb-6">
                       <div className={`h-20 w-20 animate-pulse rounded-full opacity-75 ${
-                        displayMode === 'segodon'
+                        (isSegodon || displayMode === 'segodon')
                           ? 'bg-gradient-to-r from-blue-600 via-teal-600 to-emerald-600'
                           : 'bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500'
                       }`}></div>
@@ -673,38 +656,21 @@ export default function HomePage() {
                 </div>
               )}
               {result && (() => {
-                // 区切り文字で分割（常にチェック）
-                let standardText = result;
-                let segodonText = '';
-                let hasLanguageSplit = false;
-                
-                if (result.includes('<<<SEGODON_SPLIT>>>')) {
-                  const parts = result.split('<<<SEGODON_SPLIT>>>');
-                  if (parts.length >= 2) {
-                    standardText = parts[0].trim();
-                    segodonText = parts.slice(1).join('<<<SEGODON_SPLIT>>>').trim();
-                    hasLanguageSplit = true;
-                  }
-                }
-                
-                // 表示するテキストを選択
-                const displayText = hasLanguageSplit && languageTab === 'segodon' ? segodonText : standardText;
-                
                 // ハッシュタグセクションを検出して分割
                 // 複数のパターンに対応: "## ハッシュタグ", "## ハッシュタグ:", "ハッシュタグ:", "ハッシュタグ："など
                 const hashtagPattern = /(##\s*)?ハッシュタグ[：:]\s*/i;
-                const hashtagMatch = displayText.match(hashtagPattern);
-                const hashtagIndex = hashtagMatch ? displayText.search(hashtagPattern) : -1;
+                const hashtagMatch = result.match(hashtagPattern);
+                const hashtagIndex = hashtagMatch ? result.search(hashtagPattern) : -1;
                 
-                let visibleText = displayText;
+                let visibleText = result;
                 let hasHashtagSection = false;
                 let hashtagTitle = '';
                 
                 if (hashtagIndex !== -1) {
-                  visibleText = displayText.substring(0, hashtagIndex).trim();
+                  visibleText = result.substring(0, hashtagIndex).trim();
                   hasHashtagSection = true;
                   // ハッシュタグのタイトル部分を抽出（改行まで、または次の行まで）
-                  const afterHashtag = displayText.substring(hashtagIndex);
+                  const afterHashtag = result.substring(hashtagIndex);
                   const titleMatch = afterHashtag.match(/^(##\s*)?ハッシュタグ[：:]\s*/i);
                   if (titleMatch) {
                     hashtagTitle = titleMatch[0].trim();
@@ -757,40 +723,6 @@ export default function HomePage() {
                         )}
                       </button>
                     </div>
-                    {/* アカウント名とモードを先頭に表示 */}
-                    {/* 言語切り替えタブ（分割されている場合のみ） */}
-                    {hasLanguageSplit && (
-                      <div className="mb-4 flex gap-2 border-b border-slate-200">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setLanguageTab('standard');
-                            setDisplayMode('standard');
-                          }}
-                          className={`px-4 py-2 text-sm font-medium transition-colors ${
-                            languageTab === 'standard'
-                              ? 'text-blue-600 border-b-2 border-blue-600'
-                              : 'text-slate-500 hover:text-slate-700'
-                          }`}
-                        >
-                          標準語
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setLanguageTab('segodon');
-                            setDisplayMode('segodon');
-                          }}
-                          className={`px-4 py-2 text-sm font-medium transition-colors ${
-                            languageTab === 'segodon'
-                              ? 'text-orange-600 border-b-2 border-orange-600'
-                              : 'text-slate-500 hover:text-slate-700'
-                          }`}
-                        >
-                          鹿児島弁
-                        </button>
-                      </div>
-                    )}
                     
                     {/* データ日時インフォメーション */}
                     {dataTimestamp && (
