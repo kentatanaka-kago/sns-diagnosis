@@ -202,7 +202,7 @@ export default function HomePage() {
 
   // 火山灰パーティクルの生成
   useEffect(() => {
-    if (displayMode !== 'segodon') {
+    if (!(isSegodon || displayMode === 'segodon')) {
       setAshParticles([]);
       return;
     }
@@ -217,7 +217,7 @@ export default function HomePage() {
     }));
 
     setAshParticles(particles);
-  }, [displayMode]);
+  }, [displayMode, isSegodon]);
 
   const handleDiagnose = async () => {
     const id = instagramId.trim();
@@ -402,9 +402,9 @@ export default function HomePage() {
   };
 
   return (
-    <main className={`min-h-screen text-slate-900 relative ${displayMode === 'segodon' ? 'bg-gradient-to-b from-sky-200 via-blue-300 to-blue-800' : 'bg-white'}`}>
+    <main className={`min-h-screen text-slate-900 relative ${(isSegodon || displayMode === 'segodon') ? 'bg-gradient-to-b from-sky-200 via-blue-300 to-blue-800' : 'bg-white'}`}>
       {/* 火山灰パーティクル */}
-      {displayMode === 'segodon' && ashParticles.map((particle) => (
+      {(isSegodon || displayMode === 'segodon') && ashParticles.map((particle) => (
         <div
           key={particle.id}
           className="ash-particle"
@@ -420,7 +420,7 @@ export default function HomePage() {
       
       {/* ヒーローセクション */}
       <header className={`relative z-10 border-b border-slate-100 pb-10 pt-12 text-white ${
-        displayMode === 'segodon'
+        (isSegodon || displayMode === 'segodon')
           ? 'bg-gradient-to-r from-blue-900 via-teal-800 to-emerald-900' 
           : 'bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500'
       }`}>
@@ -647,14 +647,14 @@ export default function HomePage() {
                     
                     {/* 豆知識エリア */}
                     <div className={`w-full max-w-md rounded-lg border p-4 shadow-sm backdrop-blur-sm ${
-                      displayMode === 'segodon'
+                      (isSegodon || displayMode === 'segodon')
                         ? 'border-blue-300/50 bg-white/70'
                         : 'border-purple-200 bg-white/80'
                     }`}>
                       <div className="mb-2 flex items-center gap-2">
                         <span className="text-xl">💡</span>
                         <span className={`text-sm font-semibold ${
-                          displayMode === 'segodon' ? 'text-blue-700' : 'text-purple-700'
+                          (isSegodon || displayMode === 'segodon') ? 'text-blue-700' : 'text-purple-700'
                         }`}>
                           今日のインスタ豆知識
                         </span>
