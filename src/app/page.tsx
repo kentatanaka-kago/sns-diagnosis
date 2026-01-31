@@ -24,6 +24,7 @@ export default function HomePage() {
   const [ashParticles, setAshParticles] = useState<Array<{ id: number; left: number; duration: number; delay: number; size: number }>>([]);
   const [displayMode, setDisplayMode] = useState<'standard' | 'segodon'>('standard');
   const [activeContentTab, setActiveContentTab] = useState<'diagnosis' | 'appeal'>('diagnosis');
+  const [isIdInputFocused, setIsIdInputFocused] = useState(false);
 
   // 桜島背景コンポーネント（激しい噴火バージョン）
   const SakurajimaBackground = () => {
@@ -442,12 +443,19 @@ export default function HomePage() {
                 placeholder="@username"
                 value={instagramId}
                 onChange={(e) => setInstagramId(e.target.value)}
+                onFocus={() => setIsIdInputFocused(true)}
+                onBlur={() => setIsIdInputFocused(false)}
                 className="h-11 relative z-10"
                 inputMode="text"
                 autoCapitalize="none"
                 autoCorrect="off"
                 disabled={isLoading}
               />
+              {isIdInputFocused && (
+                <p className="text-xs text-slate-500 -mt-1 animate-in fade-in duration-200" role="status">
+                  アカウントを@から入力してください
+                </p>
+              )}
               
               {/* 西郷どんモード切替 */}
               <div className="flex items-center gap-3 p-3 rounded-lg border-2 border-slate-200 bg-slate-50 relative z-10">
