@@ -1,3 +1,4 @@
+import 'server-only';
 import axios from 'axios';
 
 // APIキーから余分な空白や改行を除去
@@ -12,13 +13,9 @@ if (!difyApiUrl) {
   throw new Error('Missing DIFY_API_URL environment variable. Please set DIFY_API_URL in .env.local');
 }
 
-// APIキーの形式を検証
 if (!difyApiKey.startsWith('app-')) {
-  console.warn('Warning: Dify API key should start with "app-"');
+  console.warn('Warning: Dify API key format may be invalid');
 }
-
-// 接続先URLをログ出力
-console.log('接続先URL:', difyApiUrl);
 
 export interface DifyChatMessageRequest {
   inputs: {
@@ -61,11 +58,6 @@ export async function sendDifyChatMessage(
 
     console.log('Dify API request:', {
       url: endpointUrl,
-      baseUrl: difyApiUrl,
-      hasApiKey: !!difyApiKey,
-      apiKeyPrefix: difyApiKey.substring(0, 4), // 最初の4文字だけ表示（セキュリティ）
-      apiKeyLength: difyApiKey.length,
-      authorizationHeader: `Bearer ${difyApiKey.substring(0, 4)}...`, // 確認用（最初の4文字のみ）
       inputs: Object.keys(request.inputs),
       hasQuery: !!requestBody.query,
     });
@@ -79,8 +71,6 @@ export async function sendDifyChatMessage(
     );
 
     console.log('Dify API response status:', response.status);
-    console.log('Dify API response data keys:', Object.keys(response.data));
-    console.log('Dify API response data:', JSON.stringify(response.data, null, 2).substring(0, 500));
     
     // レスポンスからanswerを取得（複数の形式に対応）
     // ワークフローアプリの場合は、outputsの中にanswerが含まれる可能性がある
@@ -99,12 +89,8 @@ export async function sendDifyChatMessage(
     }
     
     if (!answer || !answer.trim()) {
-      console.error('Dify API response does not contain answer field:', {
-        responseData: response.data,
-        responseKeys: Object.keys(response.data),
-        fullResponse: JSON.stringify(response.data, null, 2),
-      });
-      throw new Error('Dify APIから診断結果が返されませんでした。レスポンス形式を確認してください。');
+      console.error('Dify API response does not contain answer field. Keys:', Object.keys(response.data));
+      throw new Error('Dify APIから診断結果が返されませんでした。');
     }
     
     return answer;
@@ -117,32 +103,11 @@ export async function sendDifyChatMessage(
       console.error('Dify API error details:', {
         status,
         errorMessage,
-        errorData,
-        hasApiKey: !!difyApiKey,
-        apiKeyPrefix: difyApiKey.substring(0, 4),
       });
 
       if (status === 401) {
-        // APIキーの詳細をログに出力（デバッグ用、最初の4文字のみ）
-        console.error('API Key validation:', {
-          exists: !!difyApiKey,
-          length: difyApiKey.length,
-          startsWithApp: difyApiKey.startsWith('app-'),
-          firstChars: difyApiKey.substring(0, 8),
-          lastChars: difyApiKey.substring(difyApiKey.length - 4),
-          hasWhitespace: difyApiKey !== difyApiKey.trim(),
-        });
-
-        throw new Error(
-          `Dify API認証エラー: APIキーが無効または設定されていません。\n` +
-          `確認事項:\n` +
-          `1. .env.localファイルのDIFY_API_KEYが正しく設定されているか（余分な空白や改行がないか）\n` +
-          `2. APIキーは "app-" で始まる形式か（例: app-xxxxxxxxxxxxx）\n` +
-          `3. Difyダッシュボードの「APIアクセス」から正しいAPIキーをコピーしているか\n` +
-          `4. 開発サーバーを再起動したか\n` +
-          `5. .env.localファイルのDIFY_API_KEYの前後に余分な空白や引用符がないか確認\n` +
-          `現在のAPIキー長: ${difyApiKey.length}文字`
-        );
+        console.error('Dify API authentication failed (401)');
+        throw new Error('Dify API認証エラー: APIキーが無効または設定されていません。');
       }
 
       throw new Error(

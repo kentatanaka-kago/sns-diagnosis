@@ -1,3 +1,4 @@
+import 'server-only';
 import { ApifyClient } from 'apify-client';
 
 const apifyToken = process.env.APIFY_API_TOKEN || '';
