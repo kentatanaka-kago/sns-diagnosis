@@ -247,10 +247,9 @@ export default function HomePage() {
     }
 
     try {
-      const requestBody: { username: string; mode: string; competitorId?: string; isSegodon?: boolean } = {
+      const requestBody: { username: string; mode: string; competitorId?: string } = {
         username: id,
         mode,
-        isSegodon,
       };
       
       // ライバルIDが入力されていれば追加
@@ -287,33 +286,25 @@ export default function HomePage() {
       const data = await response.json();
 
       if (!response.ok) {
-        // アカウントが存在しない場合のエラーハンドリング
         const errorMessage = data.error || "";
-        const errorDetails = data.details || "";
-        
+        const userMessage = data.message || "";
+
         if (
           response.status === 404 ||
-          errorMessage.includes("No Instagram data found") ||
-          errorMessage.includes("アカウント") ||
-          errorMessage.includes("private") ||
-          errorMessage.includes("Empty")
+          errorMessage.includes("No Instagram data found")
         ) {
-          setError("アカウントが存在しません");
+          setError(userMessage || "アカウントが存在しません");
           setIsLoading(false);
           return;
         }
-        
-        // Dify APIエラーの場合、詳細なメッセージを表示
-        if (errorMessage.includes("AI診断") || errorMessage.includes("Failed to get diagnosis")) {
-          const displayMessage = errorDetails 
-            ? `${errorMessage}\n${errorDetails}`
-            : errorMessage;
-          setError(displayMessage);
+
+        if (response.status === 429) {
+          setError(userMessage || "診断回数の上限に達しました。しばらくしてからお試しください。");
           setIsLoading(false);
           return;
         }
-        
-        throw new Error(errorMessage || "診断に失敗しました");
+
+        throw new Error(userMessage || "診断に失敗しました");
       }
 
       setResult(data.result);

@@ -32,8 +32,18 @@ interface ApifyInstagramData {
 export async function POST(request: NextRequest) {
   try {
     // レートリミット: IPアドレスの取得
-    const forwardedFor = request.headers.get('x-forwarded-for');
-    const ipAddress = forwardedFor ? forwardedFor.split(',')[0].trim() : 'unknown';
+    // Vercel環境では x-real-ip が信頼できるクライアントIPを返す
+    // x-forwarded-for はクライアントが偽装可能なため使用しない
+    const ipAddress = request.headers.get('x-real-ip')
+      || request.headers.get('x-forwarded-for')?.split(',')[0].trim()
+      || null;
+
+    if (!ipAddress) {
+      return NextResponse.json(
+        { error: 'Unable to identify client', message: 'リクエスト元を特定できませんでした。' },
+        { status: 403 }
+      );
+    }
     
     // レートリミット: 過去24時間のアクセス数をチェック
     const rateLimitWindowStart = new Date(Date.now() - RATE_LIMIT_WINDOW);
@@ -64,22 +74,8 @@ export async function POST(request: NextRequest) {
       }
     }
     
-    // レートリミット: アクセスログを記録
-    const { error: insertError } = await supabase
-      .from('access_logs')
-      .insert({
-        ip_address: ipAddress,
-        endpoint: 'diagnose',
-        created_at: new Date().toISOString(),
-      });
-    
-    if (insertError) {
-      console.error('Access log insert error:', insertError);
-      // ログ記録の失敗で処理を止めない
-    }
-    
     const body = await request.json();
-    const { username, mode = 'medium', competitorId, isSegodon = false } = body;
+    const { username, mode = 'medium', competitorId } = body;
 
     if (!username || typeof username !== 'string') {
       return NextResponse.json(
@@ -88,18 +84,35 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // モードの検証
-    const validMode = mode === 'mild' ? 'mild' : mode === 'medium' ? 'medium' : 'spicy';
-    
-    // 競合アカウントIDの処理
-    const cleanCompetitorId = competitorId ? competitorId.replace(/^@/, '').trim() : null;
+    // モードの検証（許可リスト外はエラー）
+    const VALID_MODES = ['mild', 'medium', 'spicy'] as const;
+    type DiagnosisMode = typeof VALID_MODES[number];
+    if (!VALID_MODES.includes(mode as DiagnosisMode)) {
+      return NextResponse.json(
+        { error: 'Invalid mode', message: '無効なモードが指定されました。' },
+        { status: 400 }
+      );
+    }
+    const validMode = mode as DiagnosisMode;
+
+    // Instagramユーザー名のバリデーション（英数字・ピリオド・アンダースコアのみ、最大30文字）
+    const INSTAGRAM_USERNAME_REGEX = /^[a-zA-Z0-9._]{1,30}$/;
 
     // ユーザー名から @ を除去
     const cleanUsername = username.replace(/^@/, '').trim();
 
-    if (!cleanUsername) {
+    if (!cleanUsername || !INSTAGRAM_USERNAME_REGEX.test(cleanUsername)) {
       return NextResponse.json(
-        { error: 'Invalid username' },
+        { error: 'Invalid username format', message: 'Instagramのユーザー名が正しくありません。英数字・ピリオド・アンダースコアのみ、30文字以内で入力してください。' },
+        { status: 400 }
+      );
+    }
+
+    // 競合アカウントIDの処理
+    const cleanCompetitorId = competitorId ? String(competitorId).replace(/^@/, '').trim() : null;
+    if (cleanCompetitorId && !INSTAGRAM_USERNAME_REGEX.test(cleanCompetitorId)) {
+      return NextResponse.json(
+        { error: 'Invalid competitor username format', message: '競合アカウントのユーザー名が正しくありません。' },
         { status: 400 }
       );
     }
@@ -154,6 +167,19 @@ export async function POST(request: NextRequest) {
     
     const searchCompetitorId = cleanCompetitorId && cleanCompetitorId.trim() !== '' ? cleanCompetitorId : 'NULL';
     console.log(`No cache found: username=${cleanUsername}, mode=${validMode}, competitor_id=${searchCompetitorId}. Fetching new data...`);
+
+    // キャッシュミス時のみアクセスログを記録（新規API呼び出しが発生するケース）
+    const { error: logInsertError } = await supabase
+      .from('access_logs')
+      .insert({
+        ip_address: ipAddress,
+        endpoint: 'diagnose',
+        created_at: new Date().toISOString(),
+      });
+
+    if (logInsertError) {
+      console.error('Access log insert error:', logInsertError);
+    }
 
     // 2. ApifyでInstagramデータを取得（ターゲットIDと競合IDを1回のリクエストで取得）
     console.log(`Fetching Instagram data for: ${cleanUsername}${cleanCompetitorId ? ` and competitor: ${cleanCompetitorId}` : ''}`);
@@ -274,8 +300,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json(
               {
                 error: 'No Instagram data found for this username',
-                details: userMessage,
-                technicalDetails: errorDesc,
+                message: userMessage,
               },
               { status: 404 }
             );
@@ -287,7 +312,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error: 'Failed to fetch Instagram data',
-          details: apifyError instanceof Error ? apifyError.message : 'Unknown error',
+          message: 'Instagramデータの取得に失敗しました。しばらくしてから再度お試しください。',
         },
         { status: 500 }
       );
@@ -460,31 +485,18 @@ ${profileInfo}${postsText ? `\n\n${postsText}` : ''}${competitorInfo ? `\n\n${co
     } catch (difyError) {
       console.error('Dify API error:', difyError);
       
-      // エラーメッセージを詳細に取得
-      let errorMessage = 'Failed to get diagnosis from AI';
-      let errorDetails = 'Unknown error';
-      
+      let userMessage = 'AI診断の取得に失敗しました。しばらくしてから再度お試しください。';
+
       if (difyError instanceof Error) {
-        errorDetails = difyError.message;
-        
-        // 認証エラーの場合
-        if (difyError.message.includes('認証') || difyError.message.includes('401')) {
-          errorMessage = 'AI診断サービスの認証に失敗しました';
-        }
-        // タイムアウトエラーの場合
-        else if (difyError.message.includes('timeout') || difyError.message.includes('タイムアウト')) {
-          errorMessage = 'AI診断に時間がかかりすぎています';
-        }
-        // その他のエラー
-        else {
-          errorMessage = 'AI診断の取得に失敗しました';
+        if (difyError.message.includes('timeout') || difyError.message.includes('タイムアウト')) {
+          userMessage = 'AI診断に時間がかかりすぎています。しばらくしてから再度お試しください。';
         }
       }
-      
+
       return NextResponse.json(
         {
-          error: errorMessage,
-          details: errorDetails,
+          error: 'AI diagnosis failed',
+          message: userMessage,
         },
         { status: 500 }
       );
@@ -542,7 +554,7 @@ ${profileInfo}${postsText ? `\n\n${postsText}` : ''}${competitorInfo ? `\n\n${co
     return NextResponse.json(
       {
         error: 'Internal server error',
-        details: error instanceof Error ? error.message : 'Unknown error',
+        message: 'サーバーエラーが発生しました。しばらくしてから再度お試しください。',
       },
       { status: 500 }
     );
