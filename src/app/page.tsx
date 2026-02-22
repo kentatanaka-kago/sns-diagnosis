@@ -965,6 +965,15 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* デプロイ日時 */}
+      <footer className="relative z-10 pb-6 text-center">
+        <p className="text-[10px] text-slate-300">
+          deployed: {process.env.NEXT_PUBLIC_BUILD_TIME
+            ? new Date(process.env.NEXT_PUBLIC_BUILD_TIME).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' })
+            : '-'}
+        </p>
+      </footer>
       </main>
   );
 }
