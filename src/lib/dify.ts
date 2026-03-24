@@ -67,6 +67,7 @@ export async function sendDifyChatMessage(
       requestBody,
       {
         headers,
+        timeout: 50000,
       }
     );
 

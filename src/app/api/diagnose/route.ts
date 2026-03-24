@@ -205,17 +205,15 @@ export async function POST(request: NextRequest) {
       console.log('Using actor: apify/instagram-profile-scraper');
       
       // apify/instagram-profile-scraper を使用（Apify公式で最も安定）
-      const run = await apifyClient.actor('apify/instagram-profile-scraper').call(inputParams);
+      // waitSecs: Vercelの60秒制限に収まるようクライアント側の待機を40秒に制限
+      const finishedRun = await apifyClient.actor('apify/instagram-profile-scraper').call(inputParams, {
+        waitSecs: 40,
+      });
 
-      console.log('Apify run started, ID:', run.id);
-
-      // 実行が完了するまで待機
-      const finishedRun = await apifyClient.run(run.id).waitForFinish();
-      
-      console.log('Apify run completed, status:', finishedRun.status);
+      console.log('Apify run completed, ID:', finishedRun.id, 'status:', finishedRun.status);
 
       if (finishedRun.status !== 'SUCCEEDED') {
-        const errorMsg = (finishedRun as any).statusMessage || 'Unknown error';
+        const errorMsg = finishedRun.statusMessage || 'Unknown error';
         throw new Error(`Apify run ${finishedRun.status}: ${errorMsg}`);
       }
 
